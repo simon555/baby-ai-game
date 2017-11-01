@@ -10,7 +10,7 @@ from gym_aigame.envs.rendering import *
 CELL_PIXELS = 32
 
 # Size of the image given as an observation to the agent
-IMG_ARRAY_SIZE = (3, 160, 160)
+IMG_ARRAY_SIZE = (60, 60, 3)
 
 COLORS = {
     'red'   : (255, 0, 0),
@@ -195,7 +195,7 @@ class AIGameEnv(gym.Env):
     ACTION_PICKUP = 4
     ACTION_TOGGLE = 5
 
-    def __init__(self, gridSize=8, numSubGoals=0, maxSteps=15):
+    def __init__(self, gridSize=8, numSubGoals=0, maxSteps=30):
         assert (gridSize >= 4)
 
         # For visual rendering
@@ -206,9 +206,8 @@ class AIGameEnv(gym.Env):
 
         # The observations are RGB images
         self.observation_space = spaces.Box(
-            low=0,
-            high=255,
-            shape = IMG_ARRAY_SIZE
+            low=np.array([0, 0, 0]),
+            high=np.array([10, 10, 3])
         )
 
         self.reward_range = (-1, 1000)
@@ -243,8 +242,11 @@ class AIGameEnv(gym.Env):
         self.grid = deepcopy(self.seedGrid)
 
         # Return first observation
-        self.render()
-        obs = self.renderer.getArray(IMG_ARRAY_SIZE)
+        #self.render()
+        #obs = self.renderer.getArray(IMG_ARRAY_SIZE)
+
+        obs = np.array([self.agentPos[0], self.agentPos[1], self.agentDir])
+
         return obs
 
     def _seed(self, seed=None):
@@ -381,8 +383,10 @@ class AIGameEnv(gym.Env):
             done = True
 
         # Render the environment to produce an observation
-        self.render()
-        obs = self.renderer.getArray(IMG_ARRAY_SIZE)
+        #self.render()
+        #obs = self.renderer.getArray(IMG_ARRAY_SIZE)
+
+        obs = np.array([self.agentPos[0], self.agentPos[1], self.agentDir])
 
         return obs, reward, done, {}
 
