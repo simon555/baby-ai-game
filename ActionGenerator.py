@@ -21,6 +21,7 @@ import timeit
 
 torch.manual_seed(100)
 
+#work with simple state
 
 class ActionGenerator(nn.Module):
     def __init__(self,

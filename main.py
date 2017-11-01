@@ -276,6 +276,7 @@ class AIGameWindow(QMainWindow):
 
         self.showEnv(obs)
 
+        
         newState = State(obs, prevState.mission, "")
 
         # Store the state transition and reward

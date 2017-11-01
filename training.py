@@ -48,7 +48,8 @@ def selectAction(state):
     #compute the action
     distribution = gen(img, mission, advice)
     action = int(torch.max(distribution, 1)[-1].data[0])
-    print(distribution)
+    print("advice",state.advice,"END ADVICE")
+    print("distribution",distribution)
     print(action)
     
     """"
