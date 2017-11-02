@@ -193,13 +193,7 @@ class AIGameEnv(gym.Env):
     ACTION_FORWARD = 2
     ACTION_TOGGLE = 3
 
-<<<<<<< HEAD
     def __init__(self, gridSize=8, numSubGoals=0, maxSteps=30):
-||||||| merged common ancestors
-    def __init__(self, gridSize=8, numSubGoals=0, maxSteps=15):
-=======
-    def __init__(self, gridSize=16, numSubGoals=1, maxSteps=100):
->>>>>>> master
         assert (gridSize >= 4)
 
         # For visual rendering
@@ -284,7 +278,7 @@ class AIGameEnv(gym.Env):
 
         # TODO: avoid placing objects in front of doors
         #self.setGrid(2, 14, Ball('blue'))
-        self.setGrid(1, 12, Key('yellow'))
+        #self.setGrid(1, 12, Key('yellow'))
 
         # Place a goal in the bottom-left corner
         self.setGrid(gridSz - 2, gridSz - 2, Goal())

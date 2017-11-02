@@ -241,7 +241,6 @@ class AIGameWindow(QMainWindow):
         self.setPixmap(self.env.renderer.getPixmap())
 
         # Display the agent's view
-<<<<<<< HEAD
         #obsW = obs.shape[0]
         #obsH = obs.shape[1]
         #obsImg = QImage(obsW, obsH, QImage.Format_ARGB32_Premultiplied)
