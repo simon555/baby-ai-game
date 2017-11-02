@@ -154,11 +154,7 @@ class AIGameWindow(QMainWindow):
             self.stepEnv(AIGameEnv.ACTION_RIGHT)
         elif e.key() == Qt.Key_Up:
             self.stepEnv(AIGameEnv.ACTION_FORWARD)
-        elif e.key() == Qt.Key_Down:
-            self.stepEnv(AIGameEnv.ACTION_BACK)
         elif e.key() == Qt.Key_Space:
-            self.stepEnv(AIGameEnv.ACTION_PICKUP)
-        elif e.key() == Qt.Key_Return:
             self.stepEnv(AIGameEnv.ACTION_TOGGLE)
 
     def mousePressEvent(self, event):
@@ -245,6 +241,7 @@ class AIGameWindow(QMainWindow):
         self.setPixmap(self.env.renderer.getPixmap())
 
         # Display the agent's view
+<<<<<<< HEAD
         #obsW = obs.shape[0]
         #obsH = obs.shape[1]
         #obsImg = QImage(obsW, obsH, QImage.Format_ARGB32_Premultiplied)

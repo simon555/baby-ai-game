@@ -10,7 +10,7 @@ from gym_aigame.envs.rendering import *
 CELL_PIXELS = 32
 
 # Size of the image given as an observation to the agent
-IMG_ARRAY_SIZE = (60, 60, 3)
+IMG_ARRAY_SIZE = (3, 160, 160)
 
 COLORS = {
     'red'   : (255, 0, 0),
@@ -187,15 +187,19 @@ class AIGameEnv(gym.Env):
     }
 
     # Possible actions
-    NUM_ACTIONS = 6
+    NUM_ACTIONS = 4
     ACTION_LEFT = 0
     ACTION_RIGHT = 1
     ACTION_FORWARD = 2
-    ACTION_BACK = 3
-    ACTION_PICKUP = 4
-    ACTION_TOGGLE = 5
+    ACTION_TOGGLE = 3
 
+<<<<<<< HEAD
     def __init__(self, gridSize=8, numSubGoals=0, maxSteps=30):
+||||||| merged common ancestors
+    def __init__(self, gridSize=8, numSubGoals=0, maxSteps=15):
+=======
+    def __init__(self, gridSize=16, numSubGoals=1, maxSteps=100):
+>>>>>>> master
         assert (gridSize >= 4)
 
         # For visual rendering
@@ -280,7 +284,7 @@ class AIGameEnv(gym.Env):
 
         # TODO: avoid placing objects in front of doors
         #self.setGrid(2, 14, Ball('blue'))
-        #self.setGrid(1, 16, Key('yellow'))
+        self.setGrid(1, 12, Key('yellow'))
 
         # Place a goal in the bottom-left corner
         self.setGrid(gridSz - 2, gridSz - 2, Goal())
@@ -351,29 +355,14 @@ class AIGameEnv(gym.Env):
                 done = True
                 reward = 1000
 
-        # Move backward
-        elif action == AIGameEnv.ACTION_BACK:
-            u, v = self.getDirVec()
-            u *= -1
-            v *= -1
-            newPos = (self.agentPos[0] + u, self.agentPos[1] + v)
-            targetCell = self.getGrid(newPos[0], newPos[1])
-            if targetCell == None or targetCell.canOverlap():
-                self.agentPos = newPos
-
-        # Pick up an item
-        elif action == AIGameEnv.ACTION_PICKUP:
+        # Pick up or trigger/activate an item
+        elif action == AIGameEnv.ACTION_TOGGLE:
             u, v = self.getDirVec()
             cell = self.getGrid(self.agentPos[0] + u, self.agentPos[1] + v)
             if cell and cell.canPickup() and self.carrying is None:
                 self.carrying = cell
                 self.setGrid(self.agentPos[0] + u, self.agentPos[1] + v, None)
-
-        # Trigger/activate an item
-        elif action == AIGameEnv.ACTION_TOGGLE:
-            u, v = self.getDirVec()
-            cell = self.getGrid(self.agentPos[0] + u, self.agentPos[1] + v)
-            if cell:
+            elif cell:
                 cell.toggle(self)
 
         else:
