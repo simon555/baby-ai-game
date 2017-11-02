@@ -193,7 +193,7 @@ class AIGameEnv(gym.Env):
     ACTION_FORWARD = 2
     ACTION_TOGGLE = 3
 
-    def __init__(self, gridSize=8, numSubGoals=0, maxSteps=30):
+    def __init__(self, gridSize=6, numSubGoals=0, maxSteps=30):
         assert (gridSize >= 4)
 
         # For visual rendering
@@ -205,7 +205,7 @@ class AIGameEnv(gym.Env):
         # The observations are RGB images
         self.observation_space = spaces.Box(
             low=np.array([0, 0, 0]),
-            high=np.array([10, 10, 3])
+            high=np.array([gridSize, gridSize, 3])
         )
 
         self.reward_range = (-1, 1000)
@@ -276,9 +276,9 @@ class AIGameEnv(gym.Env):
             doorIdx = self.np_random.randint(1, gridSz-2)
             self.setGrid(splitIdx, doorIdx, Door('yellow'))
 
-        # TODO: avoid placing objects in front of doors
-        #self.setGrid(2, 14, Ball('blue'))
-        #self.setGrid(1, 12, Key('yellow'))
+            # TODO: avoid placing objects in front of doors
+            #self.setGrid(2, 14, Ball('blue'))
+            self.setGrid(1, 4, Key('yellow'))
 
         # Place a goal in the bottom-left corner
         self.setGrid(gridSz - 2, gridSz - 2, Goal())
