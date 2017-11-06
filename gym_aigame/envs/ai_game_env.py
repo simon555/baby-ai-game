@@ -193,7 +193,7 @@ class AIGameEnv(gym.Env):
     ACTION_FORWARD = 2
     ACTION_TOGGLE = 3
 
-    def __init__(self, gridSize=6, numSubGoals=0, maxSteps=30):
+    def __init__(self, gridSize=8, numSubGoals=1, maxSteps=30):
         assert (gridSize >= 4)
 
         # For visual rendering
@@ -223,6 +223,8 @@ class AIGameEnv(gym.Env):
     def _reset(self):
         # Place the agent in the starting position
         self.agentPos = self.startPos
+
+        self.maxPos = self.agentPos
 
         # Agent direction, initially pointing right (+x axis)
         self.agentDir = 0
@@ -274,11 +276,11 @@ class AIGameEnv(gym.Env):
             for i in range(0, gridSz):
                 self.setGrid(splitIdx, i, Wall())
             doorIdx = self.np_random.randint(1, gridSz-2)
-            self.setGrid(splitIdx, doorIdx, Door('yellow'))
+            self.setGrid(splitIdx, doorIdx, None)
 
             # TODO: avoid placing objects in front of doors
             #self.setGrid(2, 14, Ball('blue'))
-            self.setGrid(1, 4, Key('yellow'))
+            #self.setGrid(1, 4, Key('yellow'))
 
         # Place a goal in the bottom-left corner
         self.setGrid(gridSz - 2, gridSz - 2, Goal())
@@ -344,6 +346,14 @@ class AIGameEnv(gym.Env):
             newPos = (self.agentPos[0] + u, self.agentPos[1] + v)
             targetCell = self.getGrid(newPos[0], newPos[1])
             if targetCell == None or targetCell.canOverlap():
+                if newPos[0] > self.maxPos[0]:
+                    self.maxPos = (newPos[0], self.maxPos[1])
+                    reward = 1
+
+                if newPos[1] > self.maxPos[1]:
+                    self.maxPos = (self.maxPos[0], newPos[1])
+                    reward = 1
+
                 self.agentPos = newPos
             elif targetCell.type == 'goal':
                 done = True
@@ -356,8 +366,10 @@ class AIGameEnv(gym.Env):
             if cell and cell.canPickup() and self.carrying is None:
                 self.carrying = cell
                 self.setGrid(self.agentPos[0] + u, self.agentPos[1] + v, None)
+                reward = 1
             elif cell:
-                cell.toggle(self)
+                if cell.toggle(self):
+                    reward = 1
 
         else:
             assert False, "unknown action"
