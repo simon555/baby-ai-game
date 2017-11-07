@@ -9,8 +9,16 @@ from gym_aigame.envs.rendering import *
 # Size in pixels of a cell in the human view
 CELL_PIXELS = 32
 
+OBJ_TYPES = {
+    'wall' : 0,
+    'door' : 1,
+    'ball' : 2,
+    'key'  : 3,
+    'goal' : 4
+}
+
 # Size of the image given as an observation to the agent
-IMG_ARRAY_SIZE = (3, 160, 160)
+IMG_ARRAY_SIZE = (160, 160, 3)
 
 COLORS = {
     'red'   : (255, 0, 0),
@@ -21,12 +29,32 @@ COLORS = {
     'grey'  : (100, 100, 100)
 }
 
+# Used to map colors to bit indices
+COLOR_IDXS = {
+    'red'   : 0,
+    'green' : 1,
+    'blue'  : 2,
+    'purple': 3,
+    'yellow': 4,
+    'grey'  : 5
+}
+
+# Number of bits used to encode each cell in the observation vector
+BITS_PER_CELL = len(OBJ_TYPES) + len(COLORS) + 1
+
+# Offset at which the color bits are encoded
+COLOR_BIT_OFS = len(OBJ_TYPES)
+
+# Offset at which the agent bit is encoded
+AGENT_BIT_OFS  = COLOR_BIT_OFS + len(COLORS)
+
 class WorldObj:
     """
     Base class for grid world objects
     """
 
     def __init__(self, type, color):
+        assert type in OBJ_TYPES, type
         assert color in COLORS, color
         self.type = type
         self.color = color
@@ -193,7 +221,7 @@ class AIGameEnv(gym.Env):
     ACTION_FORWARD = 2
     ACTION_TOGGLE = 3
 
-    def __init__(self, gridSize=8, numSubGoals=1, maxSteps=30):
+    def __init__(self, gridSize=8, numSubGoals=0, maxSteps=30):
         assert (gridSize >= 4)
 
         # For visual rendering
@@ -204,8 +232,9 @@ class AIGameEnv(gym.Env):
 
         # The observations are RGB images
         self.observation_space = spaces.Box(
-            low=np.array([0, 0, 0]),
-            high=np.array([gridSize, gridSize, 3])
+            low=0,
+            high=1,
+            shape=(gridSize * gridSize * BITS_PER_CELL,)
         )
 
         self.reward_range = (-1, 1000)
@@ -224,8 +253,6 @@ class AIGameEnv(gym.Env):
         # Place the agent in the starting position
         self.agentPos = self.startPos
 
-        self.maxPos = self.agentPos
-
         # Agent direction, initially pointing right (+x axis)
         self.agentDir = 0
 
@@ -242,11 +269,7 @@ class AIGameEnv(gym.Env):
         self.grid = deepcopy(self.seedGrid)
 
         # Return first observation
-        #self.render()
-        #obs = self.renderer.getArray(IMG_ARRAY_SIZE)
-
-        obs = np.array([self.agentPos[0], self.agentPos[1], self.agentDir])
-
+        obs = self.getBitVector()
         return obs
 
     def _seed(self, seed=None):
@@ -276,11 +299,12 @@ class AIGameEnv(gym.Env):
             for i in range(0, gridSz):
                 self.setGrid(splitIdx, i, Wall())
             doorIdx = self.np_random.randint(1, gridSz-2)
+            #self.setGrid(splitIdx, doorIdx, Door('yellow'))
             self.setGrid(splitIdx, doorIdx, None)
 
-            # TODO: avoid placing objects in front of doors
-            #self.setGrid(2, 14, Ball('blue'))
-            #self.setGrid(1, 4, Key('yellow'))
+        # TODO: avoid placing objects in front of doors
+        #self.setGrid(2, 14, Ball('blue'))
+        #self.setGrid(1, 12, Key('yellow'))
 
         # Place a goal in the bottom-left corner
         self.setGrid(gridSz - 2, gridSz - 2, Goal())
@@ -346,18 +370,10 @@ class AIGameEnv(gym.Env):
             newPos = (self.agentPos[0] + u, self.agentPos[1] + v)
             targetCell = self.getGrid(newPos[0], newPos[1])
             if targetCell == None or targetCell.canOverlap():
-                if newPos[0] > self.maxPos[0]:
-                    self.maxPos = (newPos[0], self.maxPos[1])
-                    reward = 1
-
-                if newPos[1] > self.maxPos[1]:
-                    self.maxPos = (self.maxPos[0], newPos[1])
-                    reward = 1
-
                 self.agentPos = newPos
             elif targetCell.type == 'goal':
                 done = True
-                reward = 1000
+                reward = 1000 - self.stepCount
 
         # Pick up or trigger/activate an item
         elif action == AIGameEnv.ACTION_TOGGLE:
@@ -366,10 +382,8 @@ class AIGameEnv(gym.Env):
             if cell and cell.canPickup() and self.carrying is None:
                 self.carrying = cell
                 self.setGrid(self.agentPos[0] + u, self.agentPos[1] + v, None)
-                reward = 1
             elif cell:
-                if cell.toggle(self):
-                    reward = 1
+                cell.toggle(self)
 
         else:
             assert False, "unknown action"
@@ -377,13 +391,34 @@ class AIGameEnv(gym.Env):
         if self.stepCount >= self.maxSteps:
             done = True
 
-        # Render the environment to produce an observation
-        #self.render()
-        #obs = self.renderer.getArray(IMG_ARRAY_SIZE)
-
-        obs = np.array([self.agentPos[0], self.agentPos[1], self.agentDir])
+        obs = self.getBitVector()
 
         return obs, reward, done, {}
+
+    def getBitVector(self):
+        """Produce a rendering of the world as a numpy boolean array"""
+
+        bits = np.zeros(self.gridSize ** 2 * BITS_PER_CELL, dtype=np.uint8)
+
+        for j in range(0, self.gridSize):
+            for i in range(0, self.gridSize):
+                cell = self.getGrid(i, j)
+                if cell == None:
+                    continue
+
+                baseIdx = BITS_PER_CELL * (j * self.gridSize + i)
+                typeIdx = OBJ_TYPES[cell.type]
+                colorIdx = COLOR_IDXS[cell.color]
+
+                bits[baseIdx + typeIdx] = 1
+                bits[baseIdx + COLOR_BIT_OFS + colorIdx] = 1
+
+        # Mark the agent position
+        x, y = self.agentPos
+        agentBitIdx = BITS_PER_CELL * (y * self.gridSize + x) + AGENT_BIT_OFS
+        bits[agentBitIdx] = 1
+
+        return bits
 
     def _render(self, mode='human', close=False):
         if close:
