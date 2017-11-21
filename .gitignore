@@ -1,5 +1,7 @@
 model/glove50.txt
 rl/trained_models
+model/InferSent/dataset/GloVe/glove.840B.300d.txt
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
