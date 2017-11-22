@@ -1,6 +1,6 @@
 model/glove50.txt
 rl/trained_models
-
+model/
 model/InferSent/dataset/GloVe/glove.840B.300d.txt
 
 
