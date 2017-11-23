@@ -1,4 +1,5 @@
-model/glove50.txt
+model/InferSent/dataset
+model/InfetSent/infersent.allnli.pickle
 trained_models
 
 # Byte-compiled / optimized / DLL files
