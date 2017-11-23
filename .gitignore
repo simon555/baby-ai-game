@@ -1,5 +1,5 @@
 model/InferSent/dataset
-model/InfetSent/infersent.allnli.pickle
+model/InferSent/infersent.allnli.pickle
 trained_models
 
 # Byte-compiled / optimized / DLL files
