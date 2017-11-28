@@ -67,15 +67,15 @@ class Sentence2Vec(object):
 
 
 #test code
-model=Sentence2Vec()
-sentence='Hello I am Simon'
-sentences=[sentence,'How are you ?']
-x=model.encodeSent(sentence)
-print(x.size())
-x=model.encodeSent(sentences)
-print(x.size())
-model.infersent.visualize(sentence)
-
-    
+#model=Sentence2Vec()
+#sentence='Hello I am Simon'
+#sentences=[sentence,'How are you ?']
+#x=model.encodeSent(sentence)
+#print(x.size())
+#x=model.encodeSent(sentences)
+#print(x.size())
+#model.infersent.visualize(sentence)
+#
+#    
     
     
