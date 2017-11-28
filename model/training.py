@@ -34,3 +34,10 @@ def selectAction(state):
     
     import random
     return random.randint(0, 3)
+
+
+import os
+import sys
+PACKAGE_PARENT = '..'
+SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
+print(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))

@@ -15,7 +15,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import sentenceEmbedder as SE
-import UsefulComputations as cp
 import torch.nn.functional as F
 import timeit
 

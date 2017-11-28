@@ -11,21 +11,29 @@ import torch
 from torch.autograd import Variable
 
 
+import os
+directory=os.getcwd()
+if(not directory[-5:]=='model'):
+    directory=directory+ '\\model'
+    sys.path.insert(0,directory)
+    print("new path added to sys.path : ", directory)
+    
+
 
 class Sentence2Vec(object):
     def __init__(self,
-                 glove_path="./InferSent/dataset/GloVe/glove.840B.300d.txt",
+                 glove_path=directory+"/InferSent/dataset/GloVe/glove.840B.300d.txt",
                  useCuda=False,
                  Nwords=10000,
-                 pathToInferSentModel='InferSent/infersent.allnli.pickle',
-                 directory="./InferSent"):
+                 pathToInferSentModel=directory+'/InferSent/infersent.allnli.pickle',
+                 modelDirectory=directory+"/InferSent"):
         print ("Loading Glove Model")
         
         
         #adding directory to the InferSent module
-        if (not directory in sys.path):
+        if (not modelDirectory in sys.path):
             print("adding local directory to load the model")
-            sys.path.append(directory)
+            sys.path.append(modelDirectory)
         else:
             print("directory already in the sys.path")
             

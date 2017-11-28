@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+import sys
+import os
+directory=os.getcwd()
+directory=directory+'\\model'
+if not directory in sys.path:
+    sys.path.insert(0,directory)
+    print("adding directory path")
+
 import time
 import sys
 import threading
@@ -14,6 +22,12 @@ from PyQt5.QtGui import QImage, QPixmap, QPainter, QColor
 import gym
 from gym_aigame.envs import AIGameEnv, Annotator, Teacher
 from model.training import State, selectAction
+
+
+#repo_root=os.path.dirname(os.paht.abspath(__file__))
+#sys.path.insert(0,repo_root)
+#__package__='Baby'
+
 
 class AIGameWindow(QMainWindow):
 
@@ -284,7 +298,7 @@ def main(argv):
 
     # Load the gym environment
     env = gym.make(options.env)
-    #env = Teacher(env)
+    env = Teacher(env)
 
     # Create the application window
     app = QApplication(sys.argv)
