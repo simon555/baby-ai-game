@@ -200,6 +200,33 @@ class Teacher(Wrapper):
 
         
         
+    def generateAdvice(self):
+        
+        doorOpen=self.env.grid.get(self.env.doorPos[0],self.env.doorPos[1]).isOpen    
+        if (not doorOpen):
+            hasKey=(self.env.carrying!=None)        
+            if (not hasKey):
+                subgoal="current sub goal : picking the key"
+                hasKey,advice=self.getKey()
+                #print("advice generated : ",advice)        
+            else:
+                subgoal="current sub goal : opening the door"
+                isOpen,advice=self.openTheDoor()
+                #print("advice generated : ",advice)
+          
+        else:
+            goal=self.env.goalPos
+            subgoal="current sub goal : reaching the goal"
+            finished, advice=self.reach(goal)
+            #print("advice generated : ",advice)
+            
+        #info['advice'] = advice
+
+
+
+        print(" ")
+        print(" ")
+        return(subgoal,advice)
         
             
 
@@ -212,28 +239,7 @@ class Teacher(Wrapper):
 
         
         
-        doorOpen=self.env.grid.get(self.env.doorPos[0],self.env.doorPos[1]).isOpen    
-        if (not doorOpen):
-            hasKey=(self.env.carrying!=None)        
-            if (not hasKey):
-                print("current sub goal : picking the key")
-                hasKey,adviceKey=self.getKey()
-                print("advice generated : ",adviceKey)        
-            else:
-                print("current sub goal : opening the door")
-                isOpen,adviceDoor=self.openTheDoor()
-                print("advice generated : ",adviceDoor)
-          
-        else:
-            goal=self.env.goalPos
-            print("current sub goal : reaching the goal")
-            finished, adviceGoal=self.reach(goal)
-            print("advice generated : ",adviceGoal)
-
-
-
-        print(" ")
-        print(" ")
+        
 
 
 

@@ -257,7 +257,12 @@ class AIGameWindow(QMainWindow):
     def stepEnv(self, action=None):
         #print('stepEnv')
         #print('action=%s' % action)
-
+        subgoal,localAdvice=self.env.generateAdvice()
+        print("step : {} ".format(self.stepIndex))             
+        print(subgoal)
+        print("generated advice {}".format(localAdvice))
+        
+        
         prevState = self.state
 
         # If no manual action was specified by the user
@@ -269,9 +274,9 @@ class AIGameWindow(QMainWindow):
 
         self.showEnv(obs)
 
-        newState = State(obs, prevState.mission, "")
+        newState=State(obs, prevState.mission, '')
+        #self.state = State(obs, prevState.mission, env.info['advice'])
         
-        print("step : ",self.stepIndex)
         self.stepIndex+=1
 
         if done:
