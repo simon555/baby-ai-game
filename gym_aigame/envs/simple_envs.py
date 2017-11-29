@@ -51,7 +51,7 @@ class DoorKeyEnv(AIGameEnv):
         #keyIdx = self.np_random.randint(1 + gridSz // 2, gridSz-2)
         keyIdx = gridSz-2
         grid.set(1, keyIdx, Key('yellow'))
-
+        self.keyPos=(1,keyIdx)
         return grid
 
 class DoorKeyEnv16x16(DoorKeyEnv):

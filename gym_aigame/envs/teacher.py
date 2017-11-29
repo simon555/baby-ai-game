@@ -129,9 +129,9 @@ class Teacher(Wrapper):
             
         if (np.abs(delta[1])>1 or (np.abs(delta[1])==1 and np.abs(delta[0])==1)):
             if delta[1]>0:
-                return((False,self.goUp()))
-            elif delta[1]<0:
                 return((False,self.goDown()))
+            elif delta[1]<0:
+                return((False,self.goUp()))
         
         print("you reached your objective, you need to get the right orientation now")
         return((True,''))
@@ -141,7 +141,7 @@ class Teacher(Wrapper):
 
         
     def getKey(self):
-        objectivePos=self.g        
+        objectivePos=self.keyPos     
         
         isNextTo,adviceDirection=self.nextTo(objectivePos)             
         if (not isNextTo):
