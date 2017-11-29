@@ -23,7 +23,13 @@ class Teacher(Wrapper):
         if self.env.carrying == None:
             return((False, 'pick up the key'))
         else:
-            return((True,""))            
+            return((True,""))      
+            
+    def ToggleTheDoor(self):
+        if (not self.env.grid.get(self.env.doorPos[0],self.env.doorPos[1]).isOpen):
+            return((False, 'open the door'))
+        else:
+            return((True,""))  
             
             
             
@@ -91,7 +97,7 @@ class Teacher(Wrapper):
             obj=3
         
         #working modulo 4 on the agent dir
-        currentDir=self.agentDir
+        currentDir=self.env.agentDir
         diff=(obj-currentDir)%4
         if diff==0:
             return((True,''))
@@ -133,15 +139,34 @@ class Teacher(Wrapper):
             elif delta[1]<0:
                 return((False,self.goUp()))
         
-        print("you reached your objective, you need to get the right orientation now")
+        #print("you reached your objective, you need to get the right orientation now")
         return((True,''))
         
+    
+    def reach(self,objectivePos):
+        currentPos=self.env.agentPos
+        delta=objectivePos[0]-currentPos[0],objectivePos[1]-currentPos[1]
+
+
+        if np.abs(delta[0])>0:
+            if delta[0]>0:
+                return((False,self.goRight()))
+            elif delta[0]<0:
+                return((False,self.goLeft()))
+            
+        if (np.abs(delta[1])>0):
+            if delta[1]>0:
+                return((False,self.goDown()))
+            elif delta[1]<0:
+                return((False,self.goUp()))
         
+        #print("you reached your objective, you need to get the right orientation now")
+        return((True,''))
             
 
         
     def getKey(self):
-        objectivePos=self.keyPos     
+        objectivePos=self.env.keyPos     
         
         isNextTo,adviceDirection=self.nextTo(objectivePos)             
         if (not isNextTo):
@@ -157,7 +182,22 @@ class Teacher(Wrapper):
         return((True,''))
             
             
-            
+    def openTheDoor(self):
+        objectivePos=self.env.doorPos  
+        isNextTo,adviceDirection=self.nextTo(objectivePos)             
+        if (not isNextTo):
+            return((False,adviceDirection))               
+        else:
+            isOriented,adviceOrienation=self.inFrontOf(objectivePos)
+            if (not isOriented):
+                return((False,adviceOrienation))
+            else:
+                doorOpen,adviceDoor =self.ToggleTheDoor()
+                if (not doorOpen):
+                    return((False,adviceDoor))        
+        return((True,''))
+        
+
         
         
         
@@ -167,20 +207,34 @@ class Teacher(Wrapper):
         """
         Called at every action
         """
-        print('inside')
+        
         obs, reward, done, info = self.env.step(action)
 
         
-        hasKey,advice=self.getKey()
-        if (not hasKey):
-            print(advice)
-        else:
-            print("now go open the door...")
         
+        doorOpen=self.env.grid.get(self.env.doorPos[0],self.env.doorPos[1]).isOpen    
+        if (not doorOpen):
+            hasKey=(self.env.carrying!=None)        
+            if (not hasKey):
+                print("current sub goal : picking the key")
+                hasKey,adviceKey=self.getKey()
+                print("advice generated : ",adviceKey)        
+            else:
+                print("current sub goal : opening the door")
+                isOpen,adviceDoor=self.openTheDoor()
+                print("advice generated : ",adviceDoor)
+          
+        else:
+            goal=self.env.goalPos
+            print("current sub goal : reaching the goal")
+            finished, adviceGoal=self.reach(goal)
+            print("advice generated : ",adviceGoal)
 
 
 
+        print(" ")
+        print(" ")
 
-        print('end inside')
+
 
         return obs, reward, done, info

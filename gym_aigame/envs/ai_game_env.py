@@ -460,6 +460,7 @@ class AIGameEnv(gym.Env):
 
         # Place a goal in the bottom-left corner
         grid.set(width - 2, height - 2, Goal())
+        self.goalPos=(width - 2, height - 2)
 
         return grid
 

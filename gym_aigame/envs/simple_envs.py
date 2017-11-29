@@ -46,6 +46,7 @@ class DoorKeyEnv(AIGameEnv):
         # Place a door in the wall
         doorIdx = self.np_random.randint(1, gridSz-2)
         grid.set(splitIdx, doorIdx, Door('yellow'))
+        self.doorPos=(splitIdx,doorIdx)
 
         # Place a key on the left side
         #keyIdx = self.np_random.randint(1 + gridSz // 2, gridSz-2)
