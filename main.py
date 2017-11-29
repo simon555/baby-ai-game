@@ -48,6 +48,7 @@ class AIGameWindow(QMainWindow):
         self.stepTimer.setInterval(0)
         self.stepTimer.setSingleShot(False)
         self.stepTimer.timeout.connect(self.stepClicked)
+        self.stepIndex=1
 
     def initUI(self):
         """Create and connect the UI elements"""
@@ -269,6 +270,9 @@ class AIGameWindow(QMainWindow):
         self.showEnv(obs)
 
         newState = State(obs, prevState.mission, "")
+        
+        print("step : ",self.stepIndex)
+        self.stepIndex+=1
 
         if done:
             self.resetEnv()
@@ -276,8 +280,7 @@ class AIGameWindow(QMainWindow):
     def stepLoop(self):
         """Auto stepping loop, runs in its own thread"""
 
-        print('stepLoop')
-
+        
         while True:
             if self.fpsLimit == 0:
                 time.sleep(0.1)
@@ -285,8 +288,9 @@ class AIGameWindow(QMainWindow):
 
             if self.fpsLimit < 100:
                 time.sleep(0.1)
-
+            
             self.stepEnv()
+            
 
 
 def main(argv):
