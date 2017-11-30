@@ -147,53 +147,96 @@ class Teacher(Wrapper):
                 if (self.env.grid.get(i,j) != None):
                     if self.env.grid.get(i,j).type == 'door':
                         outputPos=(i,j)                        
-                        print(" key found in position : ", outputPos)
                         return(outputPos)
                         
-        print("key not found...")
+        print("door not found...")
         return(False)
                 
         
-    def nextTo(self,objectivePos):
+#    def nextTo(self,objectivePos):
+#        currentPos=self.env.agentPos
+#        delta=objectivePos[0]-currentPos[0],objectivePos[1]-currentPos[1]
+#
+#
+#        if np.abs(delta[0])>1:
+#            if delta[0]>0:
+#                return((False,self.goRight()))
+#            elif delta[0]<0:
+#                return((False,self.goLeft()))
+#            
+#        if (np.abs(delta[1])>1 or (np.abs(delta[1])==1 and np.abs(delta[0])==1)):
+#            if delta[1]>0:
+#                return((False,self.goDown()))
+#            elif delta[1]<0:
+#                return((False,self.goUp()))
+#        
+#        #print("you reached your objective, you need to get the right orientation now")
+#        return((True,''))
+#        
+#        
+        
+    def nextTo(self, objective):
         currentPos=self.env.agentPos
-        delta=objectivePos[0]-currentPos[0],objectivePos[1]-currentPos[1]
-
-
-        if np.abs(delta[0])>1:
-            if delta[0]>0:
-                return((False,self.goRight()))
-            elif delta[0]<0:
-                return((False,self.goLeft()))
-            
-        if (np.abs(delta[1])>1 or (np.abs(delta[1])==1 and np.abs(delta[0])==1)):
-            if delta[1]>0:
-                return((False,self.goDown()))
-            elif delta[1]<0:
-                return((False,self.goUp()))
+        delta=objective[0]-currentPos[0],objective[1]-currentPos[1]
         
-        #print("you reached your objective, you need to get the right orientation now")
-        return((True,''))
+        if (np.abs(delta[1]) + np.abs(delta[0]) >1):                
+            img=self.state2maze()        
+            start=self.env.agentPos[1],self.env.agentPos[0]
+            goal=objective[1],objective[0]
+            seq=shortestPath.find_path_bfs(img,start,goal)
+            direction=seq[0]
+            if direction=='N':
+                return((False, self.goUp()))
+            if direction=='S':
+                return((False, self.goDown()))
+            if direction=='E':
+                return((False, self.goRight()))
+            if direction=='W':
+                return((False, self.goLeft()))
+        else:
+            return((True, ''))
         
+        
+    def reach(self, objective):
+        currentPos=self.env.agentPos
+        delta=objective[0]-currentPos[0],objective[1]-currentPos[1]
+        
+        if (np.abs(delta[1]) + np.abs(delta[0]) >0):                
+            img=self.state2maze()        
+            start=self.env.agentPos[1],self.env.agentPos[0]
+            goal=objective[1],objective[0]
+            seq=shortestPath.find_path_bfs(img,start,goal)
+            direction=seq[0]
+            if direction=='N':
+                return((False, self.goUp()))
+            if direction=='S':
+                return((False, self.goDown()))
+            if direction=='E':
+                return((False, self.goRight()))
+            if direction=='W':
+                return((False, self.goLeft()))
+        else:
+            return((True, ''))
     
-    def reach(self,objectivePos):
-        currentPos=self.env.agentPos
-        delta=objectivePos[0]-currentPos[0],objectivePos[1]-currentPos[1]
-
-
-        if np.abs(delta[0])>0:
-            if delta[0]>0:
-                return((False,self.goRight()))
-            elif delta[0]<0:
-                return((False,self.goLeft()))
-            
-        if (np.abs(delta[1])>0):
-            if delta[1]>0:
-                return((False,self.goDown()))
-            elif delta[1]<0:
-                return((False,self.goUp()))
-        
-        #print("you reached your objective, you need to get the right orientation now")
-        return((True,''))
+#    def reach(self,objectivePos):
+#        currentPos=self.env.agentPos
+#        delta=objectivePos[0]-currentPos[0],objectivePos[1]-currentPos[1]
+#
+#
+#        if np.abs(delta[0])>0:
+#            if delta[0]>0:
+#                return((False,self.goRight()))
+#            elif delta[0]<0:
+#                return((False,self.goLeft()))
+#            
+#        if (np.abs(delta[1])>0):
+#            if delta[1]>0:
+#                return((False,self.goDown()))
+#            elif delta[1]<0:
+#                return((False,self.goUp()))
+#        
+#        #print("you reached your objective, you need to get the right orientation now")
+#        return((True,''))
             
 
         
@@ -260,21 +303,21 @@ class Teacher(Wrapper):
         #print(" ")
         return(subgoal,advice)
         
-        
-    def generateAdvice(self):
-        
-        doorPos=self.getPosDoor()
-
+    def state2maze(self):
         img=[[0 for i in range(self.env.gridSize)] for j in range(self.env.gridSize)]
         for i in range(self.env.gridSize):
             for j in range(self.env.gridSize):
                 if (self.env.grid.get(i,j) != None):
                     if (self.env.grid.get(i,j).type == 'wall'):
                         img[j][i]=1
+        return(img)
         
-        start=self.env.agentPos[1],self.env.agentPos[0]
-        goal=doorPos[1],doorPos[0]
-        seq=shortestPath.find_path_bfs(img,start,goal)
+        
+    def generateAdvice(self):
+        
+        doorPos=self.getPosDoor()
+
+       
         
         doorOpen=self.env.grid.get(doorPos[0],doorPos[1]).isOpen    
         if (not doorOpen):
@@ -290,7 +333,7 @@ class Teacher(Wrapper):
             
         #info['advice'] = advice
 
-        advice=seq
+        #advice=seq
 
         #print(" ")
         #print(" ")
