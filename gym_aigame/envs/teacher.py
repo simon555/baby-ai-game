@@ -2,6 +2,17 @@ import pickle
 import gym
 from gym import Wrapper
 import numpy as np
+import sys
+import os
+directory=os.getcwd()
+directory=directory+'\\gym_aigame\\envs'
+if not directory in sys.path:
+    sys.path.insert(0,directory)
+print("adding directory path")
+
+
+
+import shortestPath
 
 class Teacher(Wrapper):
     def __init__(self, env):
@@ -14,10 +25,19 @@ class Teacher(Wrapper):
         """
         Called at the start of an episode
         """
+        
 
         obs = self.env.reset(**kwargs)
+            
+        advice=self.generateAdvice()[1]
+        return ({
+            "image": obs,
+            "advice": advice
+            })
+        
+        
 
-        return obs
+       
     
     def pickUpTheKey(self):
         if self.env.carrying == None:
@@ -25,8 +45,8 @@ class Teacher(Wrapper):
         else:
             return((True,""))      
             
-    def ToggleTheDoor(self):
-        if (not self.env.grid.get(self.env.doorPos[0],self.env.doorPos[1]).isOpen):
+    def ToggleTheDoor(self,doorPos):
+        if (not self.env.grid.get(doorPos[0],doorPos[1]).isOpen):
             return((False, 'open the door'))
         else:
             return((True,""))  
@@ -120,6 +140,18 @@ class Teacher(Wrapper):
                         
         print("key not found...")
         return(False)
+        
+    def getPosDoor(self):
+        for i in range(self.env.gridSize):
+            for j in range(self.env.gridSize):
+                if (self.env.grid.get(i,j) != None):
+                    if self.env.grid.get(i,j).type == 'door':
+                        outputPos=(i,j)                        
+                        print(" key found in position : ", outputPos)
+                        return(outputPos)
+                        
+        print("key not found...")
+        return(False)
                 
         
     def nextTo(self,objectivePos):
@@ -182,8 +214,8 @@ class Teacher(Wrapper):
         return((True,''))
             
             
-    def openTheDoor(self):
-        objectivePos=self.env.doorPos  
+    def openTheDoor(self,doorPos):
+        objectivePos=doorPos
         isNextTo,adviceDirection=self.nextTo(objectivePos)             
         if (not isNextTo):
             return((False,adviceDirection))               
@@ -192,7 +224,7 @@ class Teacher(Wrapper):
             if (not isOriented):
                 return((False,adviceOrienation))
             else:
-                doorOpen,adviceDoor =self.ToggleTheDoor()
+                doorOpen,adviceDoor =self.ToggleTheDoor(objectivePos)
                 if (not doorOpen):
                     return((False,adviceDoor))        
         return((True,''))
@@ -200,7 +232,7 @@ class Teacher(Wrapper):
 
         
         
-    def generateAdvice(self):
+    def generateAdviceWithKeys(self):
         
         doorOpen=self.env.grid.get(self.env.doorPos[0],self.env.doorPos[1]).isOpen    
         if (not doorOpen):
@@ -224,8 +256,44 @@ class Teacher(Wrapper):
 
 
 
-        print(" ")
-        print(" ")
+        #print(" ")
+        #print(" ")
+        return(subgoal,advice)
+        
+        
+    def generateAdvice(self):
+        
+        doorPos=self.getPosDoor()
+
+        img=[[0 for i in range(self.env.gridSize)] for j in range(self.env.gridSize)]
+        for i in range(self.env.gridSize):
+            for j in range(self.env.gridSize):
+                if (self.env.grid.get(i,j) != None):
+                    if (self.env.grid.get(i,j).type == 'wall'):
+                        img[j][i]=1
+        
+        start=self.env.agentPos[1],self.env.agentPos[0]
+        goal=doorPos[1],doorPos[0]
+        seq=shortestPath.find_path_bfs(img,start,goal)
+        
+        doorOpen=self.env.grid.get(doorPos[0],doorPos[1]).isOpen    
+        if (not doorOpen):
+            subgoal="current sub goal : reaching the door in {}".format(doorPos)
+            isOpen,advice=self.openTheDoor(doorPos)
+                #print("advice generated : ",advice)
+          
+        else:
+            goal=self.env.goalPos
+            subgoal="current sub goal : reaching the goal"
+            finished, advice=self.reach(goal)
+            #print("advice generated : ",advice)
+            
+        #info['advice'] = advice
+
+        advice=seq
+
+        #print(" ")
+        #print(" ")
         return(subgoal,advice)
         
             
@@ -238,7 +306,14 @@ class Teacher(Wrapper):
         obs, reward, done, info = self.env.step(action)
 
         
-        
+        advice=self.generateAdvice()[1]
+
+        obs = {
+            "image": obs,
+            "advice": advice
+        }
+
+
         
 
 

@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+import sys
+import os
+directory=os.getcwd()
+directory=directory+'\\model'
+if not directory in sys.path:
+    sys.path.insert(0,directory)
+print("adding directory path")
+
+
 import time
 import sys
 import threading
@@ -10,6 +19,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget
 from PyQt5.QtWidgets import QLabel, QTextEdit, QFrame
 from PyQt5.QtWidgets import QPushButton, QSlider, QHBoxLayout, QVBoxLayout
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QColor
+
 
 import gym
 from gym_aigame.envs import AIGameEnv, Teacher

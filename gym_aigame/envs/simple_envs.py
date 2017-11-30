@@ -164,7 +164,7 @@ class MultiRoomEnv(AIGameEnv):
         goalX = self.np_random.randint(topX + 1, topX + sizeX - 2)
         goalY = self.np_random.randint(topY + 1, topY + sizeY - 2)
         grid.set(goalX, goalY, Goal())
-
+        self.goalPos=(goalX, goalY)
         return grid
 
     def _placeRoom(
