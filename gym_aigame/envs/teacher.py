@@ -12,11 +12,20 @@ print("adding directory path")
 
 
 
+
+
 import shortestPath
 
 class Teacher(Wrapper):
     def __init__(self, env):
         super(Teacher, self).__init__(env)
+        
+        self.Dico={'continue':['continue',"go forward", 'go on', 'keep the same direction!', 'okay continue this way','advance one case'],
+                   'left':['go left','turn left', 'now go to the left', 'go to the left!...The other left!!!', 'go on your left'],
+                   'right':['go right', 'turn right', 'now go to the right', 'tous à Tribor !!', 'go on your right','good job! now go to the right'],
+                   'turn back': ['turn back','go backward','turn yourself', 'make a U turn', 'look behind you...' ],             
+                   'key':['take the key!', 'pick up the key', 'pick it up', 'take it', 'key !!!', 'catch the key','toggle the key'   ],
+                   'door':['open the door', 'toggle the door', 'open it', 'tire la chevillette et la bobinette cherra...']}
 
     def _close(self):
         super(Teacher, self)._close()
@@ -34,22 +43,27 @@ class Teacher(Wrapper):
             "image": obs,
             "advice": advice
             })
-        
+    
+    def chooseExpression(self, keyOfDic):
+        value=self.Dico[keyOfDic]
+        numbers=len(value)
+        idx=np.random.randint(0,numbers)
+        return(value[idx])
         
 
        
     
     def pickUpTheKey(self):
         if self.env.carrying == None:
-            return((False, 'pick up the key'))
+            return((False, self.chooseExpression("key")))
         else:
             return((True,""))      
             
     def ToggleTheDoor(self,doorPos):
         if (not self.env.grid.get(doorPos[0],doorPos[1]).isOpen):
-            return((False, 'open the door'))
+            return((False, self.chooseExpression("door")))
         else:
-            return((True,""))  
+            return((True,"door already opened"))  
             
             
             
@@ -57,47 +71,47 @@ class Teacher(Wrapper):
     def goDown(self):
         DirVec=self.env.getDirVec()
         if DirVec==(1,0):
-            return('go right')
+            return(self.chooseExpression("right"))
         elif DirVec==(-1,0):
-            return('go left')
+            return(self.chooseExpression("left"))
         elif DirVec==(0,1):
-            return('continue')
+            return(self.chooseExpression("continue"))
         elif DirVec==(0,-1):
-            return('turn back')
+            return(self.chooseExpression("turn back"))
         
     
     def goRight(self):
         DirVec=self.env.getDirVec()
         if DirVec==(1,0):
-            return('continue')
+            return(self.chooseExpression("continue"))
         elif DirVec==(-1,0):
-            return('turn back')
+            return(self.chooseExpression("turn back"))
         elif DirVec==(0,1):
-            return('go left')
+            return(self.chooseExpression("left"))
         elif DirVec==(0,-1):
-            return('go right')
+            return(self.chooseExpression("right"))
             
     def goUp(self):
         DirVec=self.env.getDirVec()
         if DirVec==(1,0):
-            return('go left')
+            return(self.chooseExpression("left"))
         elif DirVec==(-1,0):
-            return('go right')
+            return(self.chooseExpression("right"))
         elif DirVec==(0,1):
-            return('turn back')
+            return(self.chooseExpression("turn back"))
         elif DirVec==(0,-1):
-            return('continue')
+            return(self.chooseExpression("continue"))
     
     def goLeft(self):
         DirVec=self.env.getDirVec()
         if DirVec==(1,0):
-            return('turn back')
+            return(self.chooseExpression("turn back"))
         elif DirVec==(-1,0):
-            return('continue')
+            return(self.chooseExpression("continue"))
         elif DirVec==(0,1):
-            return('turn right')
+            return(self.chooseExpression("right"))
         elif DirVec==(0,-1):
-            return('turn left')
+            return(self.chooseExpression("left"))
     
     def inFrontOf(self,ojectivePos):
         #return a tuple (bool,advice), if bool=True the agent is in front of the obective, else the advice
@@ -107,6 +121,7 @@ class Teacher(Wrapper):
         #get the desired direction
         currentPos=self.env.agentPos
         delta=ojectivePos[0]-currentPos[0],ojectivePos[1]-currentPos[1]
+        #print("delta : ", delta)
         if delta==(1,0):
             obj=0
         elif delta==(-1,0):
@@ -122,11 +137,11 @@ class Teacher(Wrapper):
         if diff==0:
             return((True,''))
         elif diff==1:
-            return((False,'go Right'))
+            return((False,self.chooseExpression("right")))
         elif diff==2:
-            return((False,'turn back'))
+            return((False,self.chooseExpression("turn back")))
         elif diff==3:
-            return((False,'turn left'))
+            return((False,self.chooseExpression("left")))
                 
         
     def getPosKey(self):
@@ -194,7 +209,7 @@ class Teacher(Wrapper):
             if direction=='W':
                 return((False, self.goLeft()))
         else:
-            return((True, ''))
+            return((True, ' you are next to {}'.format(objective)))
         
         
     def reach(self, objective):
@@ -311,15 +326,38 @@ class Teacher(Wrapper):
                     if (self.env.grid.get(i,j).type == 'wall'):
                         img[j][i]=1
         return(img)
-        
+    
+    
+    def getCurrentDorPos(self):
+        for room in reversed(self.env.rooms):
+            if room.exitDoor !=None:
+                if not self.env.grid.get(room.exitDoorPos[0],room.exitDoorPos[1]).isOpen:
+                    currentRoom=room
+        return(currentRoom.exitDoorPos)
+    
+            
         
     def generateAdvice(self):
+       
+#        print("currently there are X rooms : ", self.env.numRooms)
+#        
+#        for i in range(self.env.numRooms-1):
+#            print("room ", i, " exit door ", self.env.rooms[i].exitDoorPos, " opened : ",self.env.rooms[i].exitDoor.isOpen)
+#         
+#        for i in range(self.env.numRooms-1):
+#            print("room ", i, " exit door ", self.env.rooms[i].exitDoorPos,
+#                  " opened : ",self.env.grid.get(self.env.rooms[i].exitDoorPos[0],self.env.rooms[i].exitDoorPos[1]).isOpen)
+#        
         
-        doorPos=self.getPosDoor()
-
+        if not self.env.grid.get(self.env.rooms[-1].entryDoorPos[0],self.env.rooms[-1].entryDoorPos[1]).isOpen:
+            doorPos=self.getCurrentDorPos()
+            doorOpen=self.env.grid.get(doorPos[0],doorPos[1]).isOpen   
+            #print("currently searching door : ", doorPos)
+        else:
+            doorOpen=True
        
         
-        doorOpen=self.env.grid.get(doorPos[0],doorPos[1]).isOpen    
+        #doorOpen=self.env.grid.get(doorPos[0],doorPos[1]).isOpen   
         if (not doorOpen):
             subgoal="current sub goal : reaching the door in {}".format(doorPos)
             isOpen,advice=self.openTheDoor(doorPos)
@@ -330,13 +368,14 @@ class Teacher(Wrapper):
             subgoal="current sub goal : reaching the goal"
             finished, advice=self.reach(goal)
             #print("advice generated : ",advice)
-            
+       
+        
+        print("advice generated : ", advice)
         #info['advice'] = advice
 
         #advice=seq
 
-        #print(" ")
-        #print(" ")
+        print(" ")
         return(subgoal,advice)
         
             

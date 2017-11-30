@@ -43,6 +43,7 @@ class AIGameWindow(QMainWindow):
         self.stepTimer.setInterval(0)
         self.stepTimer.setSingleShot(False)
         self.stepTimer.timeout.connect(self.stepClicked)
+        self.stepIdx=1
 
     def initUI(self):
         """Create and connect the UI elements"""
@@ -269,7 +270,7 @@ class AIGameWindow(QMainWindow):
         self.adviceBox.setPlainText(advice)
 
     def stepEnv(self, action=None):
-        #print('stepEnv')
+        print('stepEnv : ',self.stepIdx)
         #print('action=%s' % action)
 
         # If no manual action was specified by the user
@@ -280,7 +281,7 @@ class AIGameWindow(QMainWindow):
 
         self.showEnv(obs)
         self.lastObs = obs
-
+        self.stepIdx+=1
         if done:
             self.resetEnv()
 
