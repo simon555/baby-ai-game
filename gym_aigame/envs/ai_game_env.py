@@ -144,8 +144,10 @@ class Door(WorldObj):
         r.drawCircle(CELL_PIXELS * 0.75, CELL_PIXELS * 0.5, 2)
 
     def toggle(self, env):
-        self.isOpen = True
-        return True
+        if not self.isOpen:
+            self.isOpen = True
+            return True
+        return False
 
     def canOverlap(self):
         """The agent can only walk over this cell when the door is open"""
@@ -452,7 +454,7 @@ class AIGameEnv(gym.Env):
     """
 
     metadata = {
-        'render.modes': ['human', 'rgb_array'],
+        'render.modes': ['human', 'rgb_array', 'pixmap'],
         'video.frames_per_second' : 10
     }
 
@@ -486,6 +488,7 @@ class AIGameEnv(gym.Env):
         self.gridSize = gridSize
         self.maxSteps = maxSteps
         self.startPos = (1, 1)
+        self.startDir = 0
 
         # Initialize the state
         self.seed()
@@ -514,13 +517,11 @@ class AIGameEnv(gym.Env):
         return grid
 
     def _reset(self):
-        # Place the agent in the starting position
+        # Place the agent in the starting position and direction
         self.agentPos = self.startPos
+        self.agentDir = self.startDir
 
-        # Agent direction, initially pointing right (+x axis)
-        self.agentDir = 0
-
-        # Item picked up, being carried
+        # Item picked up, being carried, initially nothing
         self.carrying = None
 
         # Step count since episode start
@@ -673,7 +674,7 @@ class AIGameEnv(gym.Env):
 
     def getObsRender(self, obs):
         """
-        Render an observation
+        Render an agent observation for visualization
         """
 
         if self.obsRender == None:
@@ -718,8 +719,8 @@ class AIGameEnv(gym.Env):
         """
 
         if close:
-            #if self.gridRender:
-            #    self.gridRender.close()
+            if self.gridRender:
+                self.gridRender.close()
             return
 
         if self.gridRender is None:
@@ -765,5 +766,7 @@ class AIGameEnv(gym.Env):
 
         if mode == 'rgb_array':
             return r.getArray()
+        elif mode == 'pixmap':
+            return r.getPixmap()
 
-        return r.getPixmap()
+        return r

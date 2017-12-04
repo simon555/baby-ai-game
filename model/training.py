@@ -12,7 +12,7 @@ Trans = namedtuple('Trans', ['state', 'action', 'nextState', 'reward'])
 model=ActionGenerator.ActionGenerator()
 
 
-def selectAction(state):
+def selectAction(obs):
     """
     Select the next action to be performed in an episode
     @state tuple containing (image, mission, advice)
@@ -20,18 +20,16 @@ def selectAction(state):
 
     # TODO
     print('selectAction: implement me!')
-    
-    
-    #pre processing
-    advice=model.processText(state.advice)
-    
-    
-    print(type(advice))
-    
-    
-    
-    
-    
+
+
+    image = obs['image']
+    mission = obs['mission']
+    advice = obs['advice']
+
+    print('image: %s' % str(image.shape))
+    print('mission: %s' % mission)
+    print('advice: %s' % advice)
+
     import random
     return random.randint(0, 3)
 
