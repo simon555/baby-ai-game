@@ -1,3 +1,4 @@
+#specific here
 model/InferSent/dataset/Glove/glove.840B.300d.txt
 model/InferSent/infersent.allnli.pickle
 trained_models
