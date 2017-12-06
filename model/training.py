@@ -1,7 +1,7 @@
 from collections import namedtuple, deque
 from torch.autograd import Variable
 import torch
-
+import UsefulComputations
 import ActionGenerator
 
 
@@ -22,9 +22,11 @@ def selectAction(obs):
     print('selectAction: implement me!')
 
 
-    image = obs['image']
-    mission = obs['mission']
+    image = UsefulComputations.preProcessImage(obs['image'])
+    mission = model.processText(obs['mission'])
     advice = obs['advice']
+    
+    
 
     print('image: %s' % str(image.shape))
     print('mission: %s' % mission)

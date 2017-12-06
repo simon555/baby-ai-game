@@ -16,9 +16,35 @@ import torch.nn.functional as F
 import torch.optim as optim
 import sentenceEmbedder as SE
 import torch.nn.functional as F
+import UsefulComputations as cp
 import timeit
 
 torch.manual_seed(1)
+
+
+class FilmBlock(nn.Module):
+    def __init__(self, Nchannels):        
+        super(FilmBlock, self).__init__()
+        self.Conv_1=nn.Conv2d(Nchannels,Nchannels,3,stride=1,padding=1) 
+        self.BN_1=torch.nn.BatchNorm2d(Nchannels)
+        self.Conv_2=nn.Conv2d(Nchannels,Nchannels,3,stride=1,padding=1)
+        self.BN_2=torch.nn.BatchNorm2d(Nchannels,affine=False)
+        
+    
+    def forward(self,image,paramFromText):
+        image = self.Conv_1(image)
+        image = self.BN_1(image)
+        image = F.relu(image)
+        
+        x = self.Conv_2(image)
+        x = self.BN_2(x)
+        x = cp.affineTransformation(x,paramFromText[:,0,:],paramFromText[:,1,:])
+        x = F.relu(x)
+        
+        x+=image
+        x = F.relu(x)        
+        
+        return(x)
 
 
 class ActionGenerator(nn.Module):
@@ -35,7 +61,7 @@ class ActionGenerator(nn.Module):
         dropout_A=0,
         inputShape_V=(72,72),
         numberOfBlocks=4,
-        numberOfFeaturesInBlock=128,
+        numberOfFeaturesInBlock=64,
         numberOfActions=4):
         super(ActionGenerator, self).__init__()
 
@@ -48,54 +74,43 @@ class ActionGenerator(nn.Module):
         self.TextEncoder=SE.Sentence2Vec(useCuda=False)
 
             
-        self.dense1_SE=nn.Linear(4096,2048) 
-        self.dense2_SE=nn.Linear(2048,1024)
+        self.dense1_SE=nn.Linear(4096,numberOfFeaturesInBlock*2*numberOfBlocks) 
+        #self.dense2_SE=nn.Linear(2048,1024)
 
        
         #visual parameters
         self.inputShape_V=inputShape_V
         self.numberOfBlocks=numberOfBlocks
         self.PreConv0=nn.Conv2d(3,8,3,stride=1,padding=1)
-        self.PreConv1=nn.Conv2d(8,16,3,stride=2,padding=1)
-        self.PreConv2=nn.Conv2d(16,32,3,stride=2,padding=1)
-        self.PreConv3=nn.Conv2d(32,64,3,stride=2,padding=1)
-        self.PreConv4=nn.Conv2d(64,128,3,stride=2,padding=1)
+        self.PreBN0=torch.nn.BatchNorm2d(8)
+        self.PreConv1=nn.Conv2d(8,16,3,stride=1,padding=1)
+        self.PreBN1=torch.nn.BatchNorm2d(16)
+        self.PreConv2=nn.Conv2d(16,32,3,stride=1,padding=1)
+        self.PreBN2=torch.nn.BatchNorm2d(32)
+        self.PreConv3=nn.Conv2d(32,64,3,stride=1,padding=1)
+        self.PreBN3=torch.nn.BatchNorm2d(64)
+        self.PreConv4=nn.Conv2d(64,64,3,stride=1,padding=1)
+        self.PreBN4=torch.nn.BatchNorm2d(64)
 
         self.numberOfFeaturesInBlock=numberOfFeaturesInBlock
 
-        #blocks
+        #blocks for FILM
         self.dicOfBlocks={}
+
+        #block0
+        self.Block0=FilmBlock(self.numberOfFeaturesInBlock)
+        self.dicOfBlocks["Block0"]=self.Block0
         #block1
-        self.conv1_B0=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1)
-        self.dicOfBlocks["conv1_B0"]=self.conv1_B0
-        self.conv2_B0=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1)
-        self.dicOfBlocks["conv2_B0"]=self.conv2_B0
-        self.conv3_B0=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=2,padding=1) 
-        self.dicOfBlocks["conv3_B0"]=self.conv3_B0
-
+        self.Block1=FilmBlock(self.numberOfFeaturesInBlock)
+        self.dicOfBlocks["Block1"]=self.Block1
         #block2
-        self.conv1_B1=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1) 
-        self.dicOfBlocks["conv1_B1"]=self.conv1_B1
-        self.conv2_B1=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1) 
-        self.dicOfBlocks["conv2_B1"]=self.conv2_B1
-        self.conv3_B1=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=2,padding=1) 
-        self.dicOfBlocks["conv3_B1"]=self.conv3_B1
-
+        self.Block2=FilmBlock(self.numberOfFeaturesInBlock)
+        self.dicOfBlocks["Block2"]=self.Block2
         #block3
-        self.conv1_B2=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1) 
-        self.dicOfBlocks["conv1_B2"]=self.conv1_B2
-        self.conv2_B2=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1) 
-        self.dicOfBlocks["conv2_B2"]=self.conv2_B2
-        self.conv3_B2=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=2,padding=1) 
-        self.dicOfBlocks["conv3_B2"]=self.conv3_B2
-
-        #block4
-        self.conv1_B3=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1) 
-        self.dicOfBlocks["conv1_B3"]=self.conv1_B3
-        self.conv2_B3=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=1,padding=1) 
-        self.dicOfBlocks["conv2_B3"]=self.conv2_B3
-        self.conv3_B3=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,3,stride=2,padding=1) 
-        self.dicOfBlocks["conv3_B3"]=self.conv3_B3
+        self.Block3=FilmBlock(self.numberOfFeaturesInBlock)
+        self.dicOfBlocks["Block3"]=self.Block3
+        
+        
 
         #Selection network
         self.numberOfActions=numberOfActions
@@ -108,10 +123,10 @@ class ActionGenerator(nn.Module):
             self.cuda() 
             print("Using Cuda")
 
-
-    def processText(self,sentence):
+    #in the future, this would be only a setence2glove embedding function
+    #and the LSTM will be called in adaptText()
+    def preProcessText(self,sentence):
         output=self.TextEncoder.encodeSent(sentence)
-        shape=output.size()
         if(self.useCuda):
             output=Variable(output.cuda())
         else:
@@ -119,34 +134,38 @@ class ActionGenerator(nn.Module):
 #        print(output.type)
 #        output=Variable(output)
 #        print(output.type)
-        output=F.relu(self.dense1_SE(output))
-        output=F.relu(self.dense2_SE(output))
-        return(output.view(shape[0],-1,2,self.numberOfFeaturesInBlock) )
+        return(output)
+        
+        
+    def adaptText(self,sentence):
+        shape=sentence.size()
+        output=F.relu(self.dense1_SE(sentence))
+        #output=F.relu(self.dense2_SE(output))
+        return(output.view(shape[0],self.numberOfBlocks,2,self.numberOfFeaturesInBlock) )
 
     def visual(self,image):
         #first pre-process
 
-
         #PreConv
         x = self.PreConv0(image)
-        x = torch.nn.BatchNorm2d(x.size()[1],affine=False)(x)
+        x = self.PreBN0(x)
         x = F.relu(x)
 
         x = self.PreConv1(x)
-        x = torch.nn.BatchNorm2d(x.size()[1],affine=False)(x)
+        x = self.PreBN1(x)
         x = F.relu(x)
 
         x = self.PreConv2(x)
-        x = torch.nn.BatchNorm2d(x.size()[1],affine=False)(x) 
+        x = self.PreBN2(x) 
         x = F.relu(x)
 
 
         x = self.PreConv3(x)
-        x = torch.nn.BatchNorm2d(x.size()[1],affine=False)(x)
+        x = self.PreBN3(x)
         x = F.relu(x)
 
         x = self.PreConv4(x)
-        x = torch.nn.BatchNorm2d(x.size()[1],affine=False)(x)
+        x = self.PreBN4(x)
         x = F.relu(x)
 
         return(x)
@@ -156,17 +175,8 @@ class ActionGenerator(nn.Module):
         # #blocks
         x=image
         for i in range(self.numberOfBlocks):
-            x = self.dicOfBlocks["conv1_B{}".format(i)](x)
-            y = F.relu(x)
-
-            x =  self.dicOfBlocks["conv2_B{}".format(i)](y)
-            x = torch.nn.BatchNorm2d(x.size()[1],affine=False)(x)
-            x = cp.affineTransformation(x,paramFromText[:,i,0,:],paramFromText[:,i,1,:])
-            x = F.relu(x)
-
-            x=torch.add(y,x)
-            #x= self.dicOfBlocks["conv3_B{}".format(i)](x)
-        print("end")
+            x = self.dicOfBlocks["Block{}".format(i)](x,paramFromText[:,i,:,:])
+            
         return(x)
 
     def selectAction(self,x):
@@ -216,19 +226,24 @@ class ActionGenerator(nn.Module):
 
 
 #def adaptParameters(self,fromText):
-""""
-gen=ActionGenerator()
+
+model=ActionGenerator()
 
 sequence="this is my sequence haha"
-sequence=Variable(gen.dico.seq2matrix(sequence))
-advice="you should maybe go right or left"
-advice=Variable(gen.dico.seq2matrix(advice))
-inputsize=160
-img=np.random.rand(3,inputsize,inputsize)
-img=Variable(cp.preProcessImage(img))
+sequence=model.preProcessText(sequence)
+img=np.random.randn(3,7,7)
+img=cp.preProcessImage(img)
+print(img.size())
 
 
+img=model.visual(img)
 
+paramFromText=model.adaptText(sequence)
+
+vector=model.mixVisualAndText(img,paramFromText)
+
+
+'''
 start = timeit.timeit()
 output=gen.processText(sequence,advice)
 print ("output from process text", output.size())
@@ -289,4 +304,4 @@ optimizer.step()
 end = timeit.timeit()
 print ("optim time",end - start)
 """
-print("done")
+'''

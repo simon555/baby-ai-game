@@ -11,15 +11,37 @@ from torch.autograd import Variable
 
 
 def preProcessImage(img):
-    #return a torch variable containing the preProcessed image coming as either
-    #a numpy array or a list
-    maxValue=255.0
-    image=torch.mul(torch.from_numpy(np.array(img,dtype="double")),1/maxValue)
+    #return a torch variable containing the preProcessed image 
+    
+    #rescale between 0 and 1
+    img=np.array(img,dtype= "float")
+    maxValue=np.max(img)
+    minValue=np.min(img)
+    img=(img-minValue)/(maxValue-minValue)
+    #ensure the right order of shapes
+    #standard shape order for pytorch is (channels, dimX, dimY)
+    if(len(img.shape)==4):
+        print('error, for now we process images 1 per 1, not per batch')
+    
+    a,b,c=img.shape
+    #print(img.shape)
+    #cate to avoid : shape = (dimX, dimY, channels)
+    if(a>c):
+        #we always have channels=3 and dimX,Y>3
+        #the current shape order is(dimX, dimY, channels)
+        img=np.swapaxes(img,0,2)
+        img=np.swapaxes(img,1,2)
+        #print("new ",img.shape)
 
+    #set to pytorch Variable
+    img=Variable(torch.from_numpy(img).float())
 
+    if(torch.cuda.is_available()):
+        img=img.cuda()
+    
 
     #reshape for a batch of 1
-    return(image.unsqueeze(0))
+    return(img.unsqueeze(0))
 
 def affineTransformation(x,gamma,beta):
     #assuming that the shapes are
@@ -44,4 +66,18 @@ def affineTransformation(x,gamma,beta):
 #
 #B1=preProcessImage(B)
 #print(type(B1))
-#
+##
+#img=np.ones((7,7,3))
+#img[:,:,0]=0
+#img[:,:,1]=0.5
+#img[0,:,:]=1
+#img[1,:,:]=0
+#for i in range(3):
+#    pl.imshow(img[:,:,i])
+#    pl.show()
+#    
+#new=np.swapaxes(img,0,2)
+#new=np.swapaxes(new,1,2)
+#for i in range(3):
+#    pl.imshow(new[i,:,:])
+#    pl.show()

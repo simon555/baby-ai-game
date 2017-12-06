@@ -76,46 +76,34 @@ class Room:
         top,
         size,
         entryDoorPos,
-        exitDoorPos
+        exitDoorPos,
+        entryDoor,
+        exitDoor
     ):
         self.top = top
         self.size = size
         self.entryDoorPos = entryDoorPos
         self.exitDoorPos = exitDoorPos
+        self.exitDoor = exitDoor
 
 class MultiRoomEnv(AIGameEnv):
     """
     Environment with multiple rooms (subgoals)
     """
 
-    def __init__(self,
-        minNumRooms,
-        maxNumRooms,
-        maxRoomSize=10
-    ):
-        assert minNumRooms > 0
-        assert maxNumRooms >= minNumRooms
-        assert maxRoomSize >= 4
-
-        self.minNumRooms = minNumRooms
-        self.maxNumRooms = maxNumRooms
-        self.maxRoomSize = maxRoomSize
-
+    def __init__(self, numRooms):
+        assert numRooms > 0
+        self.numRooms = numRooms
         self.rooms = []
 
-        super(MultiRoomEnv, self).__init__(
-            gridSize=25,
-            maxSteps=self.maxNumRooms * 20
-        )
+        super(MultiRoomEnv, self).__init__(gridSize=25, maxSteps=numRooms * 20)
 
     def _genGrid(self, width, height):
 
         roomList = []
 
-        # Choose a random number of rooms to generate
-        numRooms = self.np_random.randint(self.minNumRooms, self.maxNumRooms+1)
+        for i in range(0, 5):
 
-        while len(roomList) < numRooms:
             curRoomList = []
 
             entryDoorPos = (
@@ -125,10 +113,10 @@ class MultiRoomEnv(AIGameEnv):
 
             # Recursively place the rooms
             self._placeRoom(
-                numRooms,
+                self.numRooms,
                 roomList=curRoomList,
                 minSz=4,
-                maxSz=self.maxRoomSize,
+                maxSz=10,
                 entryDoorWall=2,
                 entryDoorPos=entryDoorPos
             )
@@ -136,18 +124,20 @@ class MultiRoomEnv(AIGameEnv):
             if len(curRoomList) > len(roomList):
                 roomList = curRoomList
 
+            if len(roomList) == self.numRooms:
+                break
+
         # Store the list of rooms in this environment
         assert len(roomList) > 0
         self.rooms = roomList
 
-        # Randomize the starting agent position and direction
+        # Randomize the starting agent position
         topX, topY = roomList[0].top
         sizeX, sizeY = roomList[0].size
         self.startPos = (
             self.np_random.randint(topX + 1, topX + sizeX - 2),
             self.np_random.randint(topY + 1, topY + sizeY - 2)
         )
-        self.startDir = self.np_random.randint(0, 4)
 
         # Create the grid
         grid = Grid(width, height)
@@ -161,8 +151,8 @@ class MultiRoomEnv(AIGameEnv):
             topX, topY = room.top
             sizeX, sizeY = room.size
 
-            # Draw the top and bottom walls
             for i in range(0, sizeX):
+            # Draw the top and bottom walls
                 grid.set(topX + i, topY, wall)
                 grid.set(topX + i, topY + sizeY - 1, wall)
 
@@ -179,25 +169,19 @@ class MultiRoomEnv(AIGameEnv):
                     doorColors.remove(prevDoorColor)
                 doorColor = self.np_random.choice(tuple(doorColors))
 
-                entryDoor = Door(doorColor)
-                grid.set(*room.entryDoorPos, entryDoor)
+                room.entryDoor = Door(doorColor)
+                grid.set(*room.entryDoorPos, room.entryDoor)
                 prevDoorColor = doorColor
 
                 prevRoom = roomList[idx-1]
-                prevRoom.exitDoorPos = entryDoorPos
+                prevRoom.exitDoorPos = room.entryDoorPos
+                prevRoom.exitDoor = room.entryDoor
 
         # Place the final goal
-
-        while True:
-            goalX = self.np_random.randint(topX + 1, topX + sizeX - 1)
-            goalY = self.np_random.randint(topY + 1, topY + sizeY - 1)
-            self.goalPos=(goalX, goalY)
-
-            # Make sure the goal doesn't overlap with the agent
-            if (goalX, goalY) != self.startPos:
-                grid.set(goalX, goalY, Goal())
-                break
-
+        goalX = self.np_random.randint(topX + 1, topX + sizeX - 2)
+        goalY = self.np_random.randint(topY + 1, topY + sizeY - 2)
+        grid.set(goalX, goalY, Goal())
+        self.goalPos=(goalX, goalY)
         return grid
 
     def _placeRoom(
@@ -210,8 +194,9 @@ class MultiRoomEnv(AIGameEnv):
         entryDoorPos
     ):
         # Choose the room size randomly
-        sizeX = self.np_random.randint(minSz, maxSz+1)
-        sizeY = self.np_random.randint(minSz, maxSz+1)
+        sizeX = self.np_random.randint(minSz, maxSz)
+        sizeY = self.np_random.randint(minSz, maxSz)
+        #print('sizeX = %d, sizeY = %d' % (sizeX, sizeY))
 
         # The first room will be at the door position
         if len(roomList) == 0:
@@ -239,6 +224,10 @@ class MultiRoomEnv(AIGameEnv):
         else:
             assert False, entryDoorWall
 
+        #print('entryDoorWall=%d' % entryDoorWall)
+        #print('doorX=%s, doorY=%s' % entryDoorPos)
+        #print('topX = %d, topY = %d' % (topX, topY))
+
         # If the room is out of the grid, can't place a room here
         if topX < 0 or topY < 0:
             return False
@@ -261,6 +250,8 @@ class MultiRoomEnv(AIGameEnv):
             (topX, topY),
             (sizeX, sizeY),
             entryDoorPos,
+            None,
+            None,
             None
         ))
 
@@ -322,10 +313,7 @@ class MultiRoomEnv(AIGameEnv):
 
 class MultiRoomEnvN6(MultiRoomEnv):
     def __init__(self):
-        super(MultiRoomEnvN6, self).__init__(
-            minNumRooms=6,
-            maxNumRooms=6
-        )
+        super(MultiRoomEnvN6, self).__init__(numRooms=6)
 
 register(
     id='AIGame-Multi-Room-N6-v0',
