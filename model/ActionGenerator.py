@@ -235,7 +235,7 @@ class ActionGenerator(nn.Module):
     
     def historicalLSTM(self,vector):
         lstm_out, tmpHidden = self.lstm(
-            vector.view(1, 1, self.hidden_dim), self.hidden)
+            vector.view(1, -1, self.hidden_dim), self.hidden)
         #print('lstm_out', lstm_out.size())
         
         self.hidden=repackage_hidden(tmpHidden)
@@ -282,8 +282,7 @@ class ActionGenerator(nn.Module):
         #print("visual ",image.size())
         representation=self.mixVisualAndText(image,text)
         representation=self.flatten2vector(representation)
-        #print("representation ", representation.size())
-        
+        #print("representation ", representation.size())        
         
         output=self.historicalLSTM(representation)
         return(output)
@@ -297,109 +296,31 @@ class ActionGenerator(nn.Module):
 
 
 #def adaptParameters(self,fromText):
-
-model=ActionGenerator()
-
-
-sequence=["this is my sequence haha"]
-sequence=model.preProcessText(sequence)
-img=np.random.randn(7,7,3)
-
-
-img=cp.preProcessImage(img)
-output=model(img,sequence)
-print("final output for img ", output.size())
-
-
-criterion = nn.MSELoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-test=Variable(torch.zeros(1,128))
-sequence=sequence.detach()
-
-for i in range(500):  
-    #import pdb
-    #pdb.set_trace()
-      
-    output=model(img,sequence)    
-    loss = criterion(output, test)
-
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-    print('error {}'.format(loss.data[0]))
-
-#        
-#        
-
-#img=model.visual(img)
 #
-#paramFromText=model.adaptText(sequence)
+#model=ActionGenerator()
 #
-#vector=model.mixVisualAndText(img,paramFromText)
 #
-#final=model.flatten2vector(vector)
-#print(final.size())
+#sequence=["this is my sequence haha",'voici le conseil','trying new message']
+#sequence=model.preProcessText(sequence)
+#
+#img=[np.random.randn(7,7,3) for i in range(3)]
+#img=cp.preProcessImage(img)
+#
+#criterion = nn.MSELoss()
+#optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+#test=Variable(torch.zeros(3,128))
+#sequence=sequence.detach()
+#
+#for i in range(500):  
+#    #import pdb
+#    #pdb.set_trace()
+#      
+#    output=model(img,sequence)    
+#    loss = criterion(output, test)
+#
+#    optimizer.zero_grad()
+#    loss.backward()
+#    optimizer.step()
+#    print('error {}'.format(loss.data[0]))
 
-
-'''
-start = timeit.timeit()
-output=gen.processText(sequence,advice)
-print ("output from process text", output.size())
-print("value check ",output[0,0,0,0])
-vi=gen.visual(img)
-print("output from visual",vi.size())
-mix=gen.mixVisualAndText(vi,output)
-print("output from mix",mix.size())
-out=gen.selectAction(mix)
-print("output from select",out.size())
-
-
-end = timeit.timeit()
-print ("forward time",end - start)
-
-
-
-
-sequence2="this is my sequence haha"
-sequence2=Variable(gen.dico.seq2matrix(sequence2))
-
-advice2="you should maybe go right or left"
-advice2=Variable(gen.dico.seq2matrix(advice2))
-
-
-inputsize=160
-img2=np.random.rand(3,inputsize,inputsize)
-img2=Variable(cp.preProcessImage(img2))
-
-output2=gen(img2,sequence2,advice2)
-output2=output2.data.numpy()
-output2=torch.from_numpy(output2)
-output2=Variable(output2)
-
-
-
-criterion = nn.MSELoss()
-optimizer = optim.SGD(gen.parameters(), lr=0.001, momentum=0.9)
-optimizer.zero_grad()
-
-
-
-
-start = timeit.timeit()
-output1=gen(img,sequence,advice)
-loss = criterion(output1, output2)
-end = timeit.timeit()
-
-print ("forward time",end - start)
-
-start = timeit.timeit()
-loss.backward()
-end = timeit.timeit()
-print ("backward time",end - start)
-
-start = timeit.timeit()
-optimizer.step()
-end = timeit.timeit()
-print ("optim time",end - start)
-"""
-'''
+#    
