@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 
+import sys
+import os
+directory=os.getcwd()
+directory=directory+'\\model'
+if not directory in sys.path:
+    sys.path.insert(0,directory)
+print("adding directory path")
+
+
 import time
 import sys
 import threading
+from optparse import OptionParser
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget
@@ -10,23 +20,22 @@ from PyQt5.QtWidgets import QLabel, QTextEdit, QFrame
 from PyQt5.QtWidgets import QPushButton, QSlider, QHBoxLayout, QVBoxLayout
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QColor
 
+
 import gym
-from gym_aigame.envs import AIGameEnv, Annotator
-from model.training import State, selectAction, storeTrans
+from gym_aigame.envs import AIGameEnv, Teacher
+from model.training import selectAction
 
 class AIGameWindow(QMainWindow):
 
-    def __init__(self):
+    def __init__(self, env):
         super().__init__()
         self.initUI()
 
         # By default, manual stepping only
         self.fpsLimit = 0
 
-        self.env = gym.make('AI-Game-v0')
-        self.env = Annotator(self.env, saveOnClose=True)
-
-        self.state = None
+        self.env = env
+        self.lastObs = None
 
         self.resetEnv()
 
@@ -34,6 +43,7 @@ class AIGameWindow(QMainWindow):
         self.stepTimer.setInterval(0)
         self.stepTimer.setSingleShot(False)
         self.stepTimer.timeout.connect(self.stepClicked)
+        self.stepIdx=1
 
     def initUI(self):
         """Create and connect the UI elements"""
@@ -68,11 +78,11 @@ class AIGameWindow(QMainWindow):
 
     def createRightArea(self):
         # Agent render view (partially observable)
-        self.miniImgLabel = QLabel()
-        self.miniImgLabel.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.obsImgLabel = QLabel()
+        self.obsImgLabel.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         miniViewBox = QHBoxLayout()
         miniViewBox.addStretch(1)
-        miniViewBox.addWidget(self.miniImgLabel)
+        miniViewBox.addWidget(self.obsImgLabel)
         miniViewBox.addStretch(1)
 
         self.missionBox = QTextEdit()
@@ -89,16 +99,28 @@ class AIGameWindow(QMainWindow):
         self.stepsLabel.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.stepsLabel.setAlignment(Qt.AlignCenter)
         self.stepsLabel.setMinimumSize(60, 10)
+        resetBtn = QPushButton("Reset")
+        resetBtn.clicked.connect(self.resetEnv)
+        seedBtn = QPushButton("Seed")
+        seedBtn.clicked.connect(self.reseedEnv)
         stepsBox = QHBoxLayout()
         stepsBox.addStretch(1)
         stepsBox.addWidget(QLabel("Steps remaining"))
         stepsBox.addWidget(self.stepsLabel)
+        stepsBox.addWidget(resetBtn)
+        stepsBox.addWidget(seedBtn)
         stepsBox.addStretch(1)
+
+        hline2 = QFrame()
+        hline2.setFrameShape(QFrame.HLine)
+        hline2.setFrameShadow(QFrame.Sunken)
 
         # Stack everything up in a vetical layout
         vbox = QVBoxLayout()
         vbox.addLayout(miniViewBox)
+        #vbox.addWidget(hline)
         vbox.addLayout(stepsBox)
+        vbox.addWidget(hline2)
         vbox.addWidget(QLabel("General mission"))
         vbox.addWidget(self.missionBox)
         vbox.addWidget(QLabel("Contextual advice"))
@@ -173,15 +195,15 @@ class AIGameWindow(QMainWindow):
         QMainWindow.mousePressEvent(self, event)
 
     def missionEdit(self):
+        # The agent will get the mission as an observation
+        # before performing the next action
         text = self.missionBox.toPlainText()
-        print('new mission: ' + text)
-        self.state = State(self.state.image, text, self.state.advice)
 
     def adviceEdit(self):
+        # The agent will get this advice as an observation
+        # before performing the next action
         text = self.adviceBox.toPlainText()
-        print('new advice: ' + text)
-        self.state = State(self.state.image, self.state.mission, text)
-        self.env.setAdvice(text)
+        self.lastObs['advice'] = text
 
     def plusReward(self):
         print('+reward')
@@ -215,49 +237,59 @@ class AIGameWindow(QMainWindow):
             self.stepTimer.setInterval(int(1000 / self.fpsLimit))
             self.stepTimer.start()
 
-    def setPixmap(self, pixmap):
-        """Set the image to be displayed in the full render area"""
-        self.imgLabel.setPixmap(pixmap)
-
     def resetEnv(self):
         obs = self.env.reset()
 
-        self.showEnv(obs)
-
         mission = "Get to the green goal square"
-        self.state = State(obs, mission, mission)
         self.missionBox.setPlainText(mission)
 
+        self.lastObs = obs
+        self.showEnv(obs)
+
+    def reseedEnv(self):
+        import random
+        seed = random.randint(0, 0xFFFFFFFF)
+        self.env.seed(seed)
+        self.resetEnv()
+
     def showEnv(self, obs):
-        stepsRem = self.env.getStepsRemaining()
+        unwrapped = self.env.unwrapped
 
         # Render and display the environment
-        pixmap = self.env.render()
-        self.setPixmap(pixmap)
+        pixmap = self.env.render(mode='pixmap')
+        self.imgLabel.setPixmap(pixmap)
 
-        # Set the steps remaining display
+        # Render and display the agent's view
+        image = obs['image']
+        obsPixmap = unwrapped.getObsRender(image)
+        self.obsImgLabel.setPixmap(obsPixmap)
+
+        # Set the steps remaining displayadvice
+        stepsRem = unwrapped.getStepsRemaining()
         self.stepsLabel.setText(str(stepsRem))
 
+        advice = obs['advice']
+        self.adviceBox.setPlainText(advice)
+
     def stepEnv(self, action=None):
-        #print('stepEnv')
+        print('stepEnv : ',self.stepIdx)
         #print('action=%s' % action)
 
-        prevState = self.state
+        # If the environment doesn't supply a mission, get the
+        # mission from the input text box
+        if not hasattr(self.lastObs, 'mission'):
+            text = self.missionBox.toPlainText()
+            self.lastObs['mission'] = text
 
         # If no manual action was specified by the user
         if action == None:
-            action = selectAction(self.state)
+            action = selectAction(self.lastObs)
 
         obs, reward, done, info = self.env.step(action)
-        #print(reward)
 
         self.showEnv(obs)
-
-        newState = State(obs, prevState.mission, "")
-
-        # Store the state transition and reward
-        storeTrans(prevState, action, newState, reward)
-
+        self.lastObs = obs
+        self.stepIdx+=1
         if done:
             self.resetEnv()
 
@@ -277,14 +309,29 @@ class AIGameWindow(QMainWindow):
             self.stepEnv()
 
 
-def main():
+def main(argv):
+
+    parser = OptionParser()
+    parser.add_option(
+        "-e",
+        "--env-name",
+        dest="env",
+        help="gym environment to load",
+        default='AIGame-Multi-Room-N6-v0'
+    )
+    (options, args) = parser.parse_args()
+
+    # Load the gym environment
+    env = gym.make(options.env)
+    env = Teacher(env)
+
     # Create the application window
     app = QApplication(sys.argv)
-    window = AIGameWindow()
+    window = AIGameWindow(env)
 
     # Run the application
     sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)

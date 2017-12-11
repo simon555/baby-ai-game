@@ -18,15 +18,9 @@ Start by manually installing [PyTorch](http://pytorch.org/).
 Then, clone the repository and install the other dependencies with `pip3`:
 
 ```
-git clone https://github.com/maximecb/gym-memory.git
-cd gym-memory
+git clone https://github.com/maximecb/baby-ai-game.git
+cd baby-ai-game
 pip3 install -e .
-```
-
-Finally, decompress the glove50 data file:
-
-```
-gunzip -k model/glove50.txt.gz
 ```
 
 ## Usage
@@ -37,10 +31,10 @@ To run the interactive UI application:
 ./main.py
 ```
 
-Offline training code implementing PPO can be run with:
+Basic offline training code implementing PPO can be run with:
 
 ```
-python3 rl/main.py --env-name AI-Game-v0 --no-vis --num-processes 32 --algo ppo
+python3 basicrl/main.py --env-name AI-Game-v0 --no-vis --num-processes 32 --algo ppo
 ```
 
 ## About this Project
@@ -86,11 +80,15 @@ gestures in combination with language may be key.
 
 [Grounded Language Learning in a Simulated 3D World](https://arxiv.org/abs/1706.06551)
 
+[Mastering the Dungeon: Grounded Language Learning by Mechanical Turker Descent](https://arxiv.org/abs/1711.07950)
+
 [Programmable Agents](https://arxiv.org/abs/1706.06383) and associated [RLSS 2017 talk by Nando de Freitas](http://videolectures.net/deeplearning2017_de_freitas_deep_control/)
 
 [FiLM: Visual Reasoning with a General Conditioning Layer](https://sites.google.com/view/deep-rl-bootcamp/lectures)
 
 ### Reinforcement Learning
+
+[Reinforcement Learning with Unsupervised Auxiliary Tasks](https://arxiv.org/abs/1611.05397)
 
 [Surprise-Based Intrinsic Motivation for Deep Reinforcement Learning](https://arxiv.org/abs/1703.01732)
 

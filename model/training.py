@@ -1,98 +1,43 @@
 from collections import namedtuple, deque
 from torch.autograd import Variable
 import torch
+import UsefulComputations
+import ActionGenerator
 
-import model.UsefulComputations as cp
-from model.ActionGenerator import *
-
-# Minibatch size
-BATCH_SIZE = 64
-
-# Experience store capacity
-EXP_STORE_CAP = 10000
-
-# Interval at which to train the network
-TRAIN_INTERVAL = 100
-
-# Number of steps performed
-stepCount = 0
 
 State = namedtuple('State', ['image', 'mission', 'advice'])
 
 Trans = namedtuple('Trans', ['state', 'action', 'nextState', 'reward'])
 
-# Experience store
-expStore = deque()
+model=ActionGenerator.ActionGenerator()
 
-gen = ActionGenerator()
 
-previousImage=None
-previousAdvice=None
-previousMission=None
-
-def selectAction(state):
+def selectAction(obs):
     """
     Select the next action to be performed in an episode
     @state tuple containing (image, mission, advice)
     """
 
-    print('selectAction')
-
-    global previousImage,previousAdvice,previousMission
-
-    #preprocess the sentences
-    mission=Variable(gen.dico.seq2matrix(state.mission))
-    advice=Variable(gen.dico.seq2matrix(state.advice))
-    img=Variable(cp.preProcessImage(state.image))
-    #compute the action
-    distribution = gen(img, mission, advice)
-    action = int(torch.max(distribution, 1)[-1].data[0])
-    print(distribution)
-    print(action)
-
-    """"
-    try:
-        print("diff mission", torch.mean(torch.abs(previousMission-mission)))
-        print("diff advice", torch.mean(torch.abs(previousAdvice-advice)))
-        print("diff image", torch.mean(torch.abs(previousImage-img)))
-    except:
-        print("no previous exemple")
-
-    previousMission=mission
-    previousAdvice=advice
-    previousImage=img
-    """
+    # TODO
+    print('selectAction: implement me!')
 
 
+    image = UsefulComputations.preProcessImage(obs['image'])
+    mission = model.processText(obs['mission'])
+    advice = obs['advice']
+    
+    
 
-    # Return the index of the action to perform
-    return action
+    print('image: %s' % str(image.shape))
+    print('mission: %s' % mission)
+    print('advice: %s' % advice)
 
-
-def storeTrans(state, action, nextState, reward):
-    """Store info associated with a state transition"""
-    global stepCount
-
-    t = Trans(state, action, nextState, reward)
-
-    expStore.append(t)
-
-    if len(expStore) > EXP_STORE_CAP:
-        expStore.popleft()
-
-    stepCount += 1
-
-    if len(expStore) >= BATCH_SIZE and stepCount % TRAIN_INTERVAL == 0:
-        train()
+    import random
+    return random.randint(0, 3)
 
 
-def train():
-    # TODO: sample a minibatch from expStore
-
-
-
-
-
-
-
-    pass
+import os
+import sys
+PACKAGE_PARENT = '..'
+SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
+print(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))

@@ -1,7 +1,13 @@
+
 model/glove50.txt
 rl/trained_models
 model/
-model/InferSent/dataset/GloVe/glove.840B.300d.txt
+model/InferSent/dataset/
+
+#specific here
+
+model/InferSent/infersent.allnli.pickle
+
 trained_models
 
 # Byte-compiled / optimized / DLL files

@@ -1,5 +1,4 @@
 import math
-from copy import deepcopy
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
@@ -9,25 +8,11 @@ from gym_aigame.envs.rendering import *
 # Size in pixels of a cell in the full-scale human view
 CELL_PIXELS = 32
 
-# Size in pixels of a cell in the agent view (small-scale)
-CELL_PIXELS_AGENT = 8
-
 # Number of cells (width and height) in the agent view
-AGENT_VIEW_SIZE = 8
+AGENT_VIEW_SIZE = 7
 
-# Size of the agent view in pixels
-AGENT_VIEW_PIXELS = AGENT_VIEW_SIZE * CELL_PIXELS_AGENT
-
-# Size of the image given as an observation to the agent
-IMG_ARRAY_SIZE = (AGENT_VIEW_PIXELS, AGENT_VIEW_PIXELS, 3)
-
-OBJ_TYPES = {
-    'wall' : 0,
-    'door' : 1,
-    'ball' : 2,
-    'key'  : 3,
-    'goal' : 4
-}
+# Size of the array given as an observation to the agent
+OBS_ARRAY_SIZE = (AGENT_VIEW_SIZE, AGENT_VIEW_SIZE, 3)
 
 COLORS = {
     'red'   : (255, 0, 0),
@@ -38,8 +23,8 @@ COLORS = {
     'grey'  : (100, 100, 100)
 }
 
-# Used to map colors to bit indices
-COLOR_IDXS = {
+# Used to map colors to integers
+COLOR_TO_IDX = {
     'red'   : 0,
     'green' : 1,
     'blue'  : 2,
@@ -48,17 +33,20 @@ COLOR_IDXS = {
     'grey'  : 5
 }
 
-# Number of bits used to encode each cell in the observation vector
-BITS_PER_CELL = len(OBJ_TYPES) + len(COLORS) + 2
+IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
 
-# Offset at which the color bits are encoded
-COLOR_BIT_OFS = len(OBJ_TYPES)
+# Map of object type to integers
+OBJECT_TO_IDX = {
+    'empty'         : 0,
+    'wall'          : 1,
+    'door'          : 2,
+    'locked_door'   : 3,
+    'ball'          : 4,
+    'key'           : 5,
+    'goal'          : 6
+}
 
-# Offset at which the agent bit is encoded
-AGENT_BIT_OFS  = COLOR_BIT_OFS + len(COLORS)
-
-# Offset at which the object-specific bit is encoded
-OBJ_BIT_OFS = AGENT_BIT_OFS + 1
+IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
 
 class WorldObj:
     """
@@ -66,8 +54,8 @@ class WorldObj:
     """
 
     def __init__(self, type, color):
-        assert type in OBJ_TYPES, type
-        assert color in COLORS, color
+        assert type in OBJECT_TO_IDX, type
+        assert color in COLOR_TO_IDX, color
         self.type = type
         self.color = color
         self.contains = None
@@ -123,9 +111,9 @@ class Wall(WorldObj):
         ])
 
 class Door(WorldObj):
-    def __init__(self, color):
+    def __init__(self, color, isOpen=False):
         super(Door, self).__init__('door', color)
-        self.isOpen = False
+        self.isOpen = isOpen
 
     def render(self, r):
         c = COLORS[self.color]
@@ -154,6 +142,54 @@ class Door(WorldObj):
             (2          ,           2)
         ])
         r.drawCircle(CELL_PIXELS * 0.75, CELL_PIXELS * 0.5, 2)
+
+    def toggle(self, env):
+        if not self.isOpen:
+            self.isOpen = True
+            return True
+        return False
+
+    def canOverlap(self):
+        """The agent can only walk over this cell when the door is open"""
+        return self.isOpen
+
+class LockedDoor(WorldObj):
+    def __init__(self, color, isOpen=False):
+        super(LockedDoor, self).__init__('locked_door', color)
+        self.isOpen = isOpen
+
+    def render(self, r):
+        c = COLORS[self.color]
+        r.setLineColor(c[0], c[1], c[2])
+        r.setColor(0, 0, 0)
+
+        if self.isOpen:
+            r.drawPolygon([
+                (CELL_PIXELS-2, CELL_PIXELS),
+                (CELL_PIXELS  , CELL_PIXELS),
+                (CELL_PIXELS  ,           0),
+                (CELL_PIXELS-2,           0)
+            ])
+            return
+
+        r.drawPolygon([
+            (0          , CELL_PIXELS),
+            (CELL_PIXELS, CELL_PIXELS),
+            (CELL_PIXELS,           0),
+            (0          ,           0)
+        ])
+        r.drawPolygon([
+            (2          , CELL_PIXELS-2),
+            (CELL_PIXELS-2, CELL_PIXELS-2),
+            (CELL_PIXELS-2,           2),
+            (2          ,           2)
+        ])
+        r.drawLine(
+            CELL_PIXELS * 0.75,
+            CELL_PIXELS * 0.45,
+            CELL_PIXELS * 0.75,
+            CELL_PIXELS * 0.60
+        )
 
     def toggle(self, env):
         # If the player has the right key to open the door
@@ -216,13 +252,209 @@ class Key(WorldObj):
         r.setColor(0, 0, 0)
         r.drawCircle(18, 9, 2)
 
+class Grid:
+    """
+    Represent a grid and operations on it
+    """
+
+    def __init__(self, width, height):
+        assert width >= 4
+        assert height >= 4
+
+        self.width = width
+        self.height = height
+
+        self.grid = [None] * width * height
+
+    def copy(self):
+        from copy import deepcopy
+        return deepcopy(self)
+
+    def set(self, i, j, v):
+        assert i >= 0 and i < self.width
+        assert j >= 0 and j < self.height
+        self.grid[j * self.width + i] = v
+
+    def get(self, i, j):
+        assert i >= 0 and i < self.width
+        assert j >= 0 and j < self.height
+        return self.grid[j * self.width + i]
+
+    def rotateLeft(self):
+        """
+        Rotate the grid to the left (counter-clockwise)
+        """
+
+        grid = Grid(self.width, self.height)
+
+        for j in range(0, self.height):
+            for i in range(0, self.width):
+                v = self.get(self.width - 1 - j, i)
+                grid.set(i, j, v)
+
+        return grid
+
+    def slice(self, topX, topY, width, height):
+        """
+        Get a subset of the grid
+        """
+
+        grid = Grid(width, height)
+
+        for j in range(0, height):
+            for i in range(0, width):
+                x = topX + i
+                y = topY + j
+
+                if x >= 0 and x < self.width and \
+                   y >= 0 and y < self.height:
+                    v = self.get(x, y)
+                else:
+                    v = Wall()
+
+                grid.set(i, j, v)
+
+        return grid
+
+    def render(self, r, tileSize):
+        """
+        Render this grid at a given scale
+        :param r: target renderer object
+        :param tileSize: tile size in pixels
+        """
+
+        assert r.width == self.width * tileSize
+        assert r.height == self.height * tileSize
+
+        # Total grid size at native scale
+        widthPx = self.width * CELL_PIXELS
+        heightPx = self.height * CELL_PIXELS
+
+        # Draw background (out-of-world) tiles the same colors as walls
+        # so the agent understands these areas are not reachable
+        c = COLORS['grey']
+        r.setLineColor(c[0], c[1], c[2])
+        r.setColor(c[0], c[1], c[2])
+        r.drawPolygon([
+            (0    , heightPx),
+            (widthPx, heightPx),
+            (widthPx,      0),
+            (0    ,      0)
+        ])
+
+        r.push()
+
+        # Internally, we draw at the "large" full-grid resolution, but we
+        # use the renderer to scale back to the desired size
+        r.scale(tileSize / CELL_PIXELS, tileSize / CELL_PIXELS)
+
+        # Draw the background of the in-world cells black
+        r.fillRect(
+            0,
+            0,
+            widthPx,
+            heightPx,
+            0, 0, 0
+        )
+
+        # Draw grid lines
+        r.setLineColor(100, 100, 100)
+        for rowIdx in range(0, self.height):
+            y = CELL_PIXELS * rowIdx
+            r.drawLine(0, y, widthPx, y)
+        for colIdx in range(0, self.width):
+            x = CELL_PIXELS * colIdx
+            r.drawLine(x, 0, x, heightPx)
+
+        # Render the grid
+        for j in range(0, self.height):
+            for i in range(0, self.width):
+                cell = self.get(i, j)
+                if cell == None:
+                    continue
+                r.push()
+                r.translate(i * CELL_PIXELS, j * CELL_PIXELS)
+                cell.render(r)
+                r.pop()
+
+        r.pop()
+
+    def encode(self):
+        """
+        Produce a compact numpy encoding of the grid
+        """
+
+        codeSize = self.width * self.height * 3
+
+        array = np.zeros(shape=(self.width, self.height, 3), dtype='uint8')
+
+        for j in range(0, self.height):
+            for i in range(0, self.width):
+
+                v = self.get(i, j)
+
+                if v == None:
+                    continue
+
+                array[i, j, 0] = OBJECT_TO_IDX[v.type]
+                array[i, j, 1] = COLOR_TO_IDX[v.color]
+
+                if hasattr(v, 'isOpen') and v.isOpen:
+                    array[i, j, 2] = 1
+
+        return array
+
+    def decode(array):
+        """
+        Decode an array grid encoding back into a grid
+        """
+
+        width = array.shape[0]
+        height = array.shape[1]
+        assert array.shape[2] == 3
+
+        grid = Grid(width, height)
+
+        for j in range(0, height):
+            for i in range(0, width):
+
+                typeIdx  = array[i, j, 0]
+                colorIdx = array[i, j, 1]
+                openIdx  = array[i, j, 2]
+
+                if typeIdx == 0:
+                    continue
+
+                objType = IDX_TO_OBJECT[typeIdx]
+                color = IDX_TO_COLOR[colorIdx]
+                isOpen = True if openIdx == 1 else 0
+
+                if objType == 'wall':
+                    v = Wall()
+                elif objType == 'ball':
+                    v = Ball(color)
+                elif objType == 'key':
+                    v = Key(color)
+                elif objType == 'door':
+                    v = Door(color, isOpen)
+                elif objType == 'locked_door':
+                    v = LockedDoor(color, isOpen)
+                elif objType == 'goal':
+                    v = Goal()
+                else:
+                    assert False, "unknown obj type in decode '%s'" % objType
+
+                grid.set(i, j, v)
+
+        return grid
+
 class AIGameEnv(gym.Env):
     """
     2D grid world game environment
     """
 
     metadata = {
-        'render.modes': ['human', 'rgb_array'],
+        'render.modes': ['human', 'rgb_array', 'pixmap'],
         'video.frames_per_second' : 10
     }
 
@@ -233,11 +465,12 @@ class AIGameEnv(gym.Env):
     ACTION_FORWARD = 2
     ACTION_TOGGLE = 3
 
-    def __init__(self, gridSize=16, numSubGoals=1, maxSteps=100):
-        assert (gridSize >= 4)
-
+    def __init__(self, gridSize=16, maxSteps=100):
         # Renderer object used to render the whole grid (full-scale)
         self.gridRender = None
+
+        # Renderer used to render observations (small-scale agent view)
+        self.obsRender = None
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(AIGameEnv.NUM_ACTIONS)
@@ -245,40 +478,60 @@ class AIGameEnv(gym.Env):
         # The observations are RGB images
         self.observation_space = spaces.Box(
             low=0,
-            high=1,
-            shape=(gridSize * gridSize * BITS_PER_CELL,)
+            high=255,
+            shape=OBS_ARRAY_SIZE
         )
 
         self.reward_range = (-1, 1000)
 
         # Environment configuration
         self.gridSize = gridSize
-        self.numSubGoals = numSubGoals
         self.maxSteps = maxSteps
         self.startPos = (1, 1)
+        self.startDir = 0
 
         # Initialize the state
         self.seed()
         self.reset()
 
+    def _genGrid(self, width, height):
+        """
+        Generate a new grid
+        """
+
+        # Initialize the grid
+        grid = Grid(width, height)
+
+        # Place walls around the edges
+        for i in range(0, width):
+            grid.set(i, 0, Wall())
+            grid.set(i, height - 1, Wall())
+        for j in range(0, height):
+            grid.set(0, j, Wall())
+            grid.set(height - 1, j, Wall())
+
+        # Place a goal in the bottom-left corner
+        grid.set(width - 2, height - 2, Goal())
+        self.goalPos=(width - 2, height - 2)
+
+        return grid
+
     def _reset(self):
-        # Place the agent in the starting position
+        # Place the agent in the starting position and direction
         self.agentPos = self.startPos
+        self.agentDir = self.startDir
 
-        # Agent direction, initially pointing right (+x axis)
-        self.agentDir = 0
-
-        # Item picked up, being carried
+        # Item picked up, being carried, initially nothing
         self.carrying = None
 
         # Step count since episode start
         self.stepCount = 0
 
         # Restore the initial grid
-        self.grid = deepcopy(self.seedGrid)
+        self.grid = self.seedGrid.copy()
 
         # Return first observation
-        obs = self.getBitVector()
+        obs = self._genObs()
         return obs
 
     def _seed(self, seed=None):
@@ -292,53 +545,18 @@ class AIGameEnv(gym.Env):
         if seed == None:
             seed = 1337
 
+        # Seed the random number generator
         self.np_random, _ = seeding.np_random(seed)
 
-        gridSz = self.gridSize
-
-        # Initialize the grid
-        self.grid = [None] * gridSz * gridSz
-
-        # Place walls around the edges
-        for i in range(0, gridSz):
-            self.setGrid(i, 0, Wall())
-            self.setGrid(i, gridSz - 1, Wall())
-            self.setGrid(0, i, Wall())
-            self.setGrid(gridSz - 1, i, Wall())
-
-        # TODO: support for multiple subgoals
-        # For now, we support only one splitting wall
-        if self.numSubGoals == 1:
-            splitIdx = self.np_random.randint(2, gridSz-3)
-            for i in range(0, gridSz):
-                self.setGrid(splitIdx, i, Wall())
-            doorIdx = self.np_random.randint(1, gridSz-2)
-            self.setGrid(splitIdx, doorIdx, Door('yellow'))
-
-        # TODO: avoid placing objects in front of doors
-        #self.setGrid(2, 14, Ball('blue'))
-        self.setGrid(1, 12, Key('yellow'))
-
-        # Place a goal in the bottom-left corner
-        self.setGrid(gridSz - 2, gridSz - 2, Goal())
+        self.grid = self._genGrid(self.gridSize, self.gridSize)
 
         # Store a copy of the grid so we can restore it on reset
-        self.seedGrid = deepcopy(self.grid)
+        self.seedGrid = self.grid.copy()
 
         return [seed]
 
     def getStepsRemaining(self):
         return self.maxSteps - self.stepCount
-
-    def setGrid(self, i, j, v):
-        assert i >= 0 and i < self.gridSize
-        assert j >= 0 and j < self.gridSize
-        self.grid[j * self.gridSize + i] = v
-
-    def getGrid(self, i, j):
-        assert i >= 0 and i < self.gridSize
-        assert j >= 0 and j < self.gridSize
-        return self.grid[j * self.gridSize + i]
 
     def getDirVec(self):
         """
@@ -358,8 +576,38 @@ class AIGameEnv(gym.Env):
         # Up (negative Y)
         elif self.agentDir == 3:
             return (0, -1)
+        else:
+            assert False
 
-        assert (False)
+    def getViewExts(self):
+        """
+        Get the extents of the square set of tiles visible to the agent
+        Note: the bottom extent indices are not included in the set
+        """
+
+        # Facing right
+        if self.agentDir == 0:
+            topX = self.agentPos[0]
+            topY = self.agentPos[1] - AGENT_VIEW_SIZE // 2
+        # Facing down
+        elif self.agentDir == 1:
+            topX = self.agentPos[0] - AGENT_VIEW_SIZE // 2
+            topY = self.agentPos[1]
+        # Facing right
+        elif self.agentDir == 2:
+            topX = self.agentPos[0] - AGENT_VIEW_SIZE + 1
+            topY = self.agentPos[1] - AGENT_VIEW_SIZE // 2
+        # Facing up
+        elif self.agentDir == 3:
+            topX = self.agentPos[0] - AGENT_VIEW_SIZE // 2
+            topY = self.agentPos[1] - AGENT_VIEW_SIZE + 1
+        else:
+            assert False
+
+        botX = topX + AGENT_VIEW_SIZE
+        botY = topY + AGENT_VIEW_SIZE
+
+        return (topX, topY, botX, botY)
 
     def _step(self, action):
         self.stepCount += 1
@@ -381,7 +629,7 @@ class AIGameEnv(gym.Env):
         elif action == AIGameEnv.ACTION_FORWARD:
             u, v = self.getDirVec()
             newPos = (self.agentPos[0] + u, self.agentPos[1] + v)
-            targetCell = self.getGrid(newPos[0], newPos[1])
+            targetCell = self.grid.get(newPos[0], newPos[1])
             if targetCell == None or targetCell.canOverlap():
                 self.agentPos = newPos
             elif targetCell.type == 'goal':
@@ -391,10 +639,10 @@ class AIGameEnv(gym.Env):
         # Pick up or trigger/activate an item
         elif action == AIGameEnv.ACTION_TOGGLE:
             u, v = self.getDirVec()
-            cell = self.getGrid(self.agentPos[0] + u, self.agentPos[1] + v)
+            cell = self.grid.get(self.agentPos[0] + u, self.agentPos[1] + v)
             if cell and cell.canPickup() and self.carrying is None:
                 self.carrying = cell
-                self.setGrid(self.agentPos[0] + u, self.agentPos[1] + v, None)
+                self.grid.set(self.agentPos[0] + u, self.agentPos[1] + v, None)
             elif cell:
                 cell.toggle(self)
 
@@ -404,112 +652,66 @@ class AIGameEnv(gym.Env):
         if self.stepCount >= self.maxSteps:
             done = True
 
-        obs = self.getBitVector()
+        obs = self._genObs()
 
         return obs, reward, done, {}
 
-    def getBitVector(self):
-        """Produce a rendering of the world as a numpy boolean array"""
-
-        bits = np.zeros(self.gridSize ** 2 * BITS_PER_CELL, dtype=np.uint8)
-
-        for j in range(0, self.gridSize):
-            for i in range(0, self.gridSize):
-                cell = self.getGrid(i, j)
-                if cell == None:
-                    continue
-
-                baseIdx = BITS_PER_CELL * (j * self.gridSize + i)
-                typeIdx = OBJ_TYPES[cell.type]
-                colorIdx = COLOR_IDXS[cell.color]
-
-                bits[baseIdx + typeIdx] = 1
-                bits[baseIdx + COLOR_BIT_OFS + colorIdx] = 1
-
-                # Set a bit if this is an open door
-                if cell.type == 'door' and cell.isOpen:
-                    bits[baseIdx + OBJ_BIT_OFS] = 1
-
-        # Mark the agent position
-        x, y = self.agentPos
-        agentBitIdx = BITS_PER_CELL * (y * self.gridSize + x) + AGENT_BIT_OFS
-        bits[agentBitIdx] = 1
-
-        return bits
-
-
-    def renderTiles(self, r, tileSize, topX, topY, numX, numY):
+    def _genObs(self):
         """
-        Render a subset/window of tiles into a renderer object
-        :param r: target renderer object
-        :param topX: x-index of the top-left tile
-        :param topY: y-index of the top-left tile
+        Generate the agent's view (partially observable, low-resolution encoding)
         """
 
-        # Total grid size
-        width = self.gridSize * CELL_PIXELS
-        height = self.gridSize * CELL_PIXELS
+        topX, topY, botX, botY = self.getViewExts()
 
-        botX = min(topX + numX, self.gridSize)
-        botY = min(topY + numY, self.gridSize)
+        grid = self.grid.slice(topX, topY, AGENT_VIEW_SIZE, AGENT_VIEW_SIZE)
 
-        # Internally, we draw at the "large" full-grid resolution, but we
-        # use the renderer to scale back to the desired size
-        r.push()
-        r.scale(tileSize / CELL_PIXELS, tileSize / CELL_PIXELS)
-        r.translate(-topX * CELL_PIXELS, -topY * CELL_PIXELS)
+        for i in range(self.agentDir + 1):
+            grid = grid.rotateLeft()
 
-        # Draw grid lines
-        r.setLineColor(100, 100, 100)
-        for rowIdx in range(topY, botY):
-            y = CELL_PIXELS * rowIdx
-            r.drawLine(topX * CELL_PIXELS, y, botX * CELL_PIXELS, y)
-        for colIdx in range(topX, botX):
-            x = CELL_PIXELS * colIdx
-            r.drawLine(x, topY * CELL_PIXELS, x, botY * CELL_PIXELS)
+        obs = grid.encode()
 
-        # Draw the agent if within the visible window of cells
-        if self.agentPos[0] >= topX and self.agentPos[0] < botX and \
-           self.agentPos[1] >= topY and self.agentPos[1] < botY:
-            r.push()
-            r.translate(
-                CELL_PIXELS * (self.agentPos[0] + 0.5),
-                CELL_PIXELS * (self.agentPos[1] + 0.5)
+        return obs
+
+    def getObsRender(self, obs):
+        """
+        Render an agent observation for visualization
+        """
+
+        if self.obsRender == None:
+            self.obsRender = Renderer(
+                AGENT_VIEW_SIZE * CELL_PIXELS // 2,
+                AGENT_VIEW_SIZE * CELL_PIXELS // 2
             )
-            r.rotate(self.agentDir * 90)
-            r.setLineColor(255, 0, 0)
-            r.setColor(255, 0, 0)
-            r.drawPolygon([
-                (-12, 10),
-                ( 12,  0),
-                (-12, -10)
-            ])
-            r.pop()
 
-        # Render the grid
-        for j in range(topY, botY):
-            for i in range(topX, botX):
-                cell = self.getGrid(i, j)
-                if cell == None:
-                    continue
-                r.push()
-                r.translate(i * CELL_PIXELS, j * CELL_PIXELS)
-                cell.render(r)
-                r.pop()
+        r = self.obsRender
 
-        # Pop the grid scaling and translation
+        r.beginFrame()
+
+        grid = Grid.decode(obs)
+
+        # Render the whole grid
+        grid.render(r, CELL_PIXELS // 2)
+
+        # Draw the agent
+        r.push()
+        r.scale(0.5, 0.5)
+        r.translate(
+            CELL_PIXELS * (0.5 + AGENT_VIEW_SIZE // 2),
+            CELL_PIXELS * (AGENT_VIEW_SIZE - 0.5)
+        )
+        r.rotate(3 * 90)
+        r.setLineColor(255, 0, 0)
+        r.setColor(255, 0, 0)
+        r.drawPolygon([
+            (-12, 10),
+            ( 12,  0),
+            (-12, -10)
+        ])
         r.pop()
 
+        r.endFrame()
 
-    def renderAgent(self):
-        """
-        Render the agent's view (scaled down, partially observable)
-        """
-
-        pass
-
-
-
+        return r.getPixmap()
 
     def _render(self, mode='human', close=False):
         """
@@ -517,8 +719,8 @@ class AIGameEnv(gym.Env):
         """
 
         if close:
-            #if self.gridRender:
-            #    self.gridRender.close()
+            if self.gridRender:
+                self.gridRender.close()
             return
 
         if self.gridRender is None:
@@ -527,21 +729,44 @@ class AIGameEnv(gym.Env):
                 self.gridSize * CELL_PIXELS
             )
 
-        self.gridRender.beginFrame()
+        r = self.gridRender
+
+        r.beginFrame()
 
         # Render the whole grid
-        self.renderTiles(
-            self.gridRender,
-            CELL_PIXELS,
-            0, 0,
-            self.gridSize, self.gridSize
+        self.grid.render(r, CELL_PIXELS)
+
+        # Draw the agent
+        r.push()
+        r.translate(
+            CELL_PIXELS * (self.agentPos[0] + 0.5),
+            CELL_PIXELS * (self.agentPos[1] + 0.5)
+        )
+        r.rotate(self.agentDir * 90)
+        r.setLineColor(255, 0, 0)
+        r.setColor(255, 0, 0)
+        r.drawPolygon([
+            (-12, 10),
+            ( 12,  0),
+            (-12, -10)
+        ])
+        r.pop()
+
+        # Highlight what the agent can see
+        topX, topY, botX, botY = self.getViewExts()
+        r.fillRect(
+            topX * CELL_PIXELS,
+            topY * CELL_PIXELS,
+            AGENT_VIEW_SIZE * CELL_PIXELS,
+            AGENT_VIEW_SIZE * CELL_PIXELS,
+            200, 200, 200, 75
         )
 
-        # TODO: grey out what the agen't can't see?
-
-        self.gridRender.endFrame()
+        r.endFrame()
 
         if mode == 'rgb_array':
-            return self.gridRender.getNumpyArray()
+            return r.getArray()
+        elif mode == 'pixmap':
+            return r.getPixmap()
 
-        return self.gridRender.getPixmap()
+        return r
