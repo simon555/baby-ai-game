@@ -7,6 +7,13 @@ Created on Tue Oct 24 15:13:14 2017
 @author: sebbaghs
 """
 
+import sys
+import os
+currentDirectory = os.getcwd()
+if not currentDirectory in sys.path:
+    print('adding local directory : ', currentDirectory)
+    sys.path.insert(0,currentDirectory)
+
 import torch
 import matplotlib.pyplot as pl
 import numpy as np
@@ -16,11 +23,25 @@ import torch.nn.functional as F
 import torch.optim as optim
 import sentenceEmbedder as SE
 import torch.nn.functional as F
-import UsefulComputations as cp
+import UsefulComputations 
 import timeit
+import torch.optim as optim
 
 torch.manual_seed(1)
+np.random.seed(1)
 
+ 
+#for now CUDA does not work on my machine...
+cp=UsefulComputations.Computations(useCuda=False)
+
+#otherwise
+#cp=UsefulComputations.Computations(useCuda=torch.cuda.is_available())
+
+def repackage_hidden(h):
+    if type(h) == Variable:
+        return Variable(h.data)
+    else:
+        return tuple(repackage_hidden(v) for v in h)
 
 class FilmBlock(nn.Module):
     def __init__(self, Nchannels):        
@@ -32,6 +53,7 @@ class FilmBlock(nn.Module):
         
     
     def forward(self,image,paramFromText):
+        global cp
         image = self.Conv_1(image)
         image = self.BN_1(image)
         image = F.relu(image)
@@ -49,37 +71,25 @@ class FilmBlock(nn.Module):
 
 class ActionGenerator(nn.Module):
     def __init__(self,
-        pathToWordEmbedding="C:\\Users\\simon\\Desktop\\MILA\\GloveData\\glove50.txt",
-        hiddenSize_GM=100,
-        batch_GM=1,
-        numLayers_GM=1,
-        numDirections_GM=1,
-        dropout_GM=0,
-        batch_A=1,
-        numLayers_A=1,
-        numDirections_A=1,
-        dropout_A=0,
-        inputShape_V=(72,72),
         numberOfBlocks=4,
         numberOfFeaturesInBlock=64,
-        numberOfActions=4):
+        numberOfActions=4,
+        finalVectorDim=128):
         super(ActionGenerator, self).__init__()
 
         #Setting sentence encoder
-        self.useCuda=torch.cuda.is_available()     
-        
         #should be implemented but not work on my machine for now
-        #self.TextEncoder=SE.Sentence2Vec(useCuda=self.useCuda)
-        
-        self.TextEncoder=SE.Sentence2Vec(useCuda=False)
-
+        self.useCuda=torch.cuda.is_available()     
+        self.useCuda=False
+        #should be implemented but not work on my machine for now
+        #self.TextEncoder=SE.Sentence2Vec(useCuda=self.useCuda)        
+        self.TextEncoder=SE.Sentence2Vec(useCuda=self.useCuda)
             
         self.dense1_SE=nn.Linear(4096,numberOfFeaturesInBlock*2*numberOfBlocks) 
         #self.dense2_SE=nn.Linear(2048,1024)
 
        
         #visual parameters
-        self.inputShape_V=inputShape_V
         self.numberOfBlocks=numberOfBlocks
         self.PreConv0=nn.Conv2d(3,8,3,stride=1,padding=1)
         self.PreBN0=torch.nn.BatchNorm2d(8)
@@ -111,7 +121,25 @@ class ActionGenerator(nn.Module):
         self.dicOfBlocks["Block3"]=self.Block3
         
         
+        #image2vector
+        self.finalVectorDim=finalVectorDim
+        self.Conv_I2V_1=nn.Conv2d(64,128,3,stride=1)
+        self.Conv_I2V_2=nn.Conv2d(128,128,3,stride=1)
+        self.Conv_I2V_3=nn.Conv2d(128,128,3,stride=1)
+        self.Dense_I2V_1=nn.Linear(128,self.finalVectorDim) 
+        self.Dense_I2V_2=nn.Linear(self.finalVectorDim,self.finalVectorDim) 
 
+
+        #history LSTM
+        self.hidden_dim = finalVectorDim
+        self.lstm = nn.LSTM(self.hidden_dim, self.hidden_dim)
+        #self.Conv_history_1 = nn.Linear(self.hidden_dim, self.hidden_dim)
+        #self.Conv_history_1 = nn.Linear(self.hidden_dim, self.hidden_dim)
+
+        self.hidden = self.init_hidden()
+        
+        
+        
         #Selection network
         self.numberOfActions=numberOfActions
         self.conv1_S=nn.Conv2d(self.numberOfFeaturesInBlock,self.numberOfFeaturesInBlock,5,stride=1,padding=0) 
@@ -122,6 +150,22 @@ class ActionGenerator(nn.Module):
         if (self.useCuda):
             self.cuda() 
             print("Using Cuda")
+
+
+
+    def init_hidden(self,Nbatch=1):
+        # Before we've done anything, we dont have any hidden state.
+        # Refer to the Pytorch documentation to see exactly
+        # why they have this dimensionality.
+        # The axes semantics are (num_layers, minibatch_size, hidden_dim)
+        if self.useCuda:
+            return (Variable(torch.zeros(1, Nbatch, self.hidden_dim).cuda()),
+                Variable(torch.zeros(1, Nbatch, self.hidden_dim).cuda()))
+        else:
+            return (Variable(torch.zeros(1, Nbatch, self.hidden_dim)),
+                Variable(torch.zeros(1, Nbatch, self.hidden_dim)))
+
+    
 
     #in the future, this would be only a setence2glove embedding function
     #and the LSTM will be called in adaptText()
@@ -178,7 +222,27 @@ class ActionGenerator(nn.Module):
             x = self.dicOfBlocks["Block{}".format(i)](x,paramFromText[:,i,:,:])
             
         return(x)
+        
+    def flatten2vector(self,image):
+        image=self.Conv_I2V_1(image)
+        image=self.Conv_I2V_2(image)
+        image=self.Conv_I2V_3(image)
+        image=self.Dense_I2V_1(image.view(-1,self.finalVectorDim))
+        image=self.Dense_I2V_2(image)
 
+        return(image)
+        
+    
+    def historicalLSTM(self,vector):
+        lstm_out, tmpHidden = self.lstm(
+            vector.view(1, 1, self.hidden_dim), self.hidden)
+        #print('lstm_out', lstm_out.size())
+        
+        self.hidden=repackage_hidden(tmpHidden)
+        return(lstm_out[-1,:,:])
+        #return(lstm_out[:,:,:])
+        
+        
     def selectAction(self,x):
 
         x = self.conv1_S(x)
@@ -209,15 +273,22 @@ class ActionGenerator(nn.Module):
 
 
 
-    def forward(self,image,generalMission,advice):
-        fromText=self.processText(generalMission,advice)
-        fromVision=self.visual(image)
-        mix=self.mixVisualAndText(fromVision,fromText)
-        action=self.selectAction(mix)
-        output=torch.max(action, 1)
+    def forward(self,image,sentence):
+        if (image.size()[0]!=sentence.size()[0]):
+            print('ERROR, check the batch size of Text and Image')
+        image=self.visual(image)
+        text=self.adaptText(sentence)
+        #print("text ",text.size())
+        #print("visual ",image.size())
+        representation=self.mixVisualAndText(image,text)
+        representation=self.flatten2vector(representation)
+        #print("representation ", representation.size())
+        
+        
+        output=self.historicalLSTM(representation)
         return(output)
 
-
+        #return(output)
 
 
 
@@ -229,18 +300,45 @@ class ActionGenerator(nn.Module):
 
 model=ActionGenerator()
 
-sequence="this is my sequence haha"
+
+sequence=["this is my sequence haha"]
 sequence=model.preProcessText(sequence)
-img=np.random.randn(3,7,7)
+img=np.random.randn(7,7,3)
+
+
 img=cp.preProcessImage(img)
-print(img.size())
+output=model(img,sequence)
+print("final output for img ", output.size())
 
 
-img=model.visual(img)
+criterion = nn.MSELoss()
+optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+test=Variable(torch.zeros(1,128))
+sequence=sequence.detach()
 
-paramFromText=model.adaptText(sequence)
+for i in range(500):  
+    #import pdb
+    #pdb.set_trace()
+      
+    output=model(img,sequence)    
+    loss = criterion(output, test)
 
-vector=model.mixVisualAndText(img,paramFromText)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    print('error {}'.format(loss.data[0]))
+
+#        
+#        
+
+#img=model.visual(img)
+#
+#paramFromText=model.adaptText(sequence)
+#
+#vector=model.mixVisualAndText(img,paramFromText)
+#
+#final=model.flatten2vector(vector)
+#print(final.size())
 
 
 '''

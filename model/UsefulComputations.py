@@ -10,50 +10,55 @@ import torch
 from torch.autograd import Variable
 
 
-def preProcessImage(img):
-    #return a torch variable containing the preProcessed image 
+class Computations(object):
+    def __init__(self,useCuda=False):
+        self.useCuda=useCuda
+            
+    def preProcessImage(self,img):
+        #return a torch variable containing the preProcessed image 
+        
+        #rescale between 0 and 1
+        img=np.array(img,dtype= "float")
+        maxValue=np.max(img)
+        minValue=np.min(img)
+        img=(img-minValue)/(maxValue-minValue)
+        
+        
+        #ensure the right order of shapes
+        #batch of 1
+        if(len(img.shape)==3):
+            img=np.array([img])
+        
+        a,b,c,d=img.shape
+        if(b==c):
+        #case to avoid : shape = (Batch, dimX, dimY, channels)
+            img=np.swapaxes(img,1,3)
+            img=np.swapaxes(img,2,3)
+            #print("new ",img.shape)
+
+        #set to pytorch Variable
+        img=Variable(torch.from_numpy(img).float())
     
-    #rescale between 0 and 1
-    img=np.array(img,dtype= "float")
-    maxValue=np.max(img)
-    minValue=np.min(img)
-    img=(img-minValue)/(maxValue-minValue)
-    #ensure the right order of shapes
-    #standard shape order for pytorch is (channels, dimX, dimY)
-    if(len(img.shape)==4):
-        print('error, for now we process images 1 per 1, not per batch')
+        if(self.useCuda):
+            img=img.cuda()
+        
     
-    a,b,c=img.shape
-    #print(img.shape)
-    #cate to avoid : shape = (dimX, dimY, channels)
-    if(a>c):
-        #we always have channels=3 and dimX,Y>3
-        #the current shape order is(dimX, dimY, channels)
-        img=np.swapaxes(img,0,2)
-        img=np.swapaxes(img,1,2)
-        #print("new ",img.shape)
-
-    #set to pytorch Variable
-    img=Variable(torch.from_numpy(img).float())
-
-    if(torch.cuda.is_available()):
-        img=img.cuda()
+        #reshape for a batch of 1
+        return(img)
     
+    def affineTransformation(self,x,gamma,beta):
+        #assuming that the shapes are
+        # x : B,C,H,W
+        # gamma and beta : B,C
+        # produces a tensor of shape : B,C,H,W and store it into x
+        #print("gamma ", gamma.size())
+        #print("x ", x.size())
 
-    #reshape for a batch of 1
-    return(img.unsqueeze(0))
-
-def affineTransformation(x,gamma,beta):
-    #assuming that the shapes are
-    # x : B,C,H,W
-    # gamma and beta : B,C
-    # produces a tensor of shape : B,C,H,W and store it into x
-
-    gamma = gamma.unsqueeze(2).unsqueeze(3).expand_as(x)
-    beta = beta.unsqueeze(2).unsqueeze(3).expand_as(x)
-
-
-    return(gamma*x+beta)
+        gamma = gamma.unsqueeze(2).unsqueeze(3).expand_as(x)
+        beta = beta.unsqueeze(2).unsqueeze(3).expand_as(x)
+    
+    
+        return(gamma*x+beta)
 
 
 #test
@@ -66,14 +71,22 @@ def affineTransformation(x,gamma,beta):
 #
 #B1=preProcessImage(B)
 #print(type(B1))
-##
-#img=np.ones((7,7,3))
-#img[:,:,0]=0
-#img[:,:,1]=0.5
-#img[0,:,:]=1
-#img[1,:,:]=0
+
+#img=np.ones((32,7,7,3))
+#img[0,:,:,0]=0
+#img[0,:,:,1]=0.5
+#img[0,0,:,:]=1
+#img[0,1,:,:]=0
 #for i in range(3):
-#    pl.imshow(img[:,:,i])
+#    pl.imshow(img[0,:,:,i])
+#    pl.show()
+#    
+#model=PreProcess()
+#output=model.preProcessImage(img)
+#output=output.data.numpy()
+#
+#for i in range(3):
+#    pl.imshow(output[0,i,:,:])
 #    pl.show()
 #    
 #new=np.swapaxes(img,0,2)
