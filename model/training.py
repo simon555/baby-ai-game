@@ -22,8 +22,8 @@ def selectAction(obs):
     print('selectAction: implement me!')
 
 
-    image = UsefulComputations.preProcessImage(obs['image'])
-    mission = model.processText(obs['mission'])
+    image = obs['image']
+    mission = obs['mission']
     advice = obs['advice']
     
     
