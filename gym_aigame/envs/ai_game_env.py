@@ -555,6 +555,14 @@ class AIGameEnv(gym.Env):
 
         return [seed]
 
+    def _randInt(self, low, high):
+        return self.np_random.randint(low, high)
+
+    def _randElem(self, iterable):
+        lst = list(iterable)
+        idx = self._randInt(0, len(lst))
+        return lst[idx]
+
     def getStepsRemaining(self):
         return self.maxSteps - self.stepCount
 
@@ -726,7 +734,8 @@ class AIGameEnv(gym.Env):
         if self.gridRender is None:
             self.gridRender = Renderer(
                 self.gridSize * CELL_PIXELS,
-                self.gridSize * CELL_PIXELS
+                self.gridSize * CELL_PIXELS,
+                True if mode == 'human' else False
             )
 
         r = self.gridRender

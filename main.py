@@ -176,22 +176,23 @@ class AIGameWindow(QMainWindow):
         elif e.key() == Qt.Key_Space:
             self.stepEnv(AIGameEnv.ACTION_TOGGLE)
 
-        elif e.key() == Qt.Key_PageUp:
-            self.plusReward()
-        elif e.key() == Qt.Key_PageDown:
-            self.minusReward()
+        #elif e.key() == Qt.Key_PageUp:
+        #    self.plusReward()
+        #elif e.key() == Qt.Key_PageDown:
+        #    self.minusReward()
 
     def mousePressEvent(self, event):
         """
-        Clear the focus of the text boxes if somewhere
+        Clear the focus of the text boxes and buttons if somewhere
         else on the window is clicked
         """
 
+        # Get the object currently in focus
         focused = QApplication.focusWidget()
-        if focused == self.missionBox:
-            self.missionBox.clearFocus()
-        if focused == self.adviceBox:
-            self.adviceBox.clearFocus()
+
+        if isinstance(focused, (QPushButton, QTextEdit)):
+            focused.clearFocus()
+
         QMainWindow.mousePressEvent(self, event)
 
     def missionEdit(self):
@@ -240,10 +241,19 @@ class AIGameWindow(QMainWindow):
     def resetEnv(self):
         obs = self.env.reset()
 
-        mission = "Get to the green goal square"
+        if not isinstance(obs, dict):
+            obs = { 'image': obs, 'advice': '', 'mission': '' }
+
+        # If no mission is specified
+        if obs['mission']:
+            mission = obs['mission']
+        else:
+            mission = "Get to the green goal square"
+
         self.missionBox.setPlainText(mission)
 
         self.lastObs = obs
+
         self.showEnv(obs)
 
     def reseedEnv(self):
@@ -287,6 +297,9 @@ class AIGameWindow(QMainWindow):
 
         obs, reward, done, info = self.env.step(action)
 
+        if not isinstance(obs, dict):
+            obs = { 'image': obs, 'advice': '', 'mission': '' }
+
         self.showEnv(obs)
         self.lastObs = obs
         self.stepIdx+=1
@@ -308,7 +321,6 @@ class AIGameWindow(QMainWindow):
 
             self.stepEnv()
 
-
 def main(argv):
 
     parser = OptionParser()
@@ -323,7 +335,7 @@ def main(argv):
 
     # Load the gym environment
     env = gym.make(options.env)
-    env = Teacher(env)
+    #env = Teacher(env)
 
     # Create the application window
     app = QApplication(sys.argv)
@@ -331,7 +343,6 @@ def main(argv):
 
     # Run the application
     sys.exit(app.exec_())
-
 
 if __name__ == '__main__':
     main(sys.argv)
