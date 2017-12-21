@@ -292,35 +292,5 @@ class ActionGenerator(nn.Module):
 
 
 
-
-
-
 #def adaptParameters(self,fromText):
-#
-#model=ActionGenerator()
-#
-#
-#sequence=["this is my sequence haha",'voici le conseil','trying new message']
-#sequence=model.preProcessText(sequence)
-#
-#img=[np.random.randn(7,7,3) for i in range(3)]
-#img=cp.preProcessImage(img)
-#
-#criterion = nn.MSELoss()
-#optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-#test=Variable(torch.zeros(3,128))
-#sequence=sequence.detach()
-#
-#for i in range(500):  
-#    #import pdb
-#    #pdb.set_trace()
-#      
-#    output=model(img,sequence)    
-#    loss = criterion(output, test)
-#
-#    optimizer.zero_grad()
-#    loss.backward()
-#    optimizer.step()
-#    print('error {}'.format(loss.data[0]))
-
-#    
+ 

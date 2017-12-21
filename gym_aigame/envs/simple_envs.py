@@ -193,6 +193,7 @@ class MultiRoomEnv(AIGameEnv):
             # Make sure the goal doesn't overlap with the agent
             if (goalX, goalY) != self.startPos:
                 grid.set(goalX, goalY, Goal())
+                self.goalPos = (goalX,goalY)
                 break
 
         return grid

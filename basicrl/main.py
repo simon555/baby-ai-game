@@ -36,6 +36,7 @@ except:
     pass
 
 assert args.algo in ['a2c', 'ppo', 'acktr']
+
 if args.recurrent_policy:
     assert args.algo in ['a2c', 'ppo'], \
         'Recurrent policy is not implemented for ACKTR'
