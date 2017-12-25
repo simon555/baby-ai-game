@@ -3,7 +3,7 @@
 import sys
 import os
 directory=os.getcwd()
-directory=directory+'\\model'
+directory=directory+'/model'
 if not directory in sys.path:
     sys.path.insert(0,directory)
 print("adding directory path")
@@ -282,7 +282,7 @@ class AIGameWindow(QMainWindow):
         self.adviceBox.setPlainText(advice)
 
     def stepEnv(self, action=None):
-        print('stepEnv : ',self.stepIdx)
+        #print('stepEnv : ',self.stepIdx)
         #print('action=%s' % action)
 
         # If the environment doesn't supply a mission, get the
