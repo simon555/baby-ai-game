@@ -29,6 +29,14 @@ class Teacher(Wrapper):
                    'key':['take the key!', 'pick up the key', 'pick it up', 'take it', 'key !!!', 'catch the key','toggle the key'   ],
                    'door':['open the door', 'toggle the door', 'open it', 'tire la chevillette et la bobinette cherra...']}
 
+    
+        self.actionCorrespondance={'left':[0],'right':[1],'continue':[2],'key':[3],'door':[3], 'turn back':[0,1]}
+        
+        
+        self.bestActions=None
+        
+        
+        
     def _close(self):
         super(Teacher, self)._close()
         
@@ -58,13 +66,17 @@ class Teacher(Wrapper):
 
         
         advice=self.generateAdvice()[1]
+        
+
+
 
         obs = {
             "image": obs,
-            "advice": advice
+            "advice": advice,
+            "bestActions": self.bestActions
         }        
 
-
+        print('best action ', obs['bestActions'])
 
         return obs, reward, done, info
 
@@ -77,7 +89,10 @@ class Teacher(Wrapper):
     def chooseExpression(self, keyOfDic):
         value=self.Dico[keyOfDic]
         numbers=len(value)
-        idx=np.random.randint(0,numbers)
+        idx=np.random.randint(0,numbers)   
+        
+        actionID=self.actionCorrespondance[keyOfDic]
+        self.bestActions=actionID
         return(value[idx])
         
 

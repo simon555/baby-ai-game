@@ -285,6 +285,7 @@ class ActionGenerator(nn.Module):
         #print("representation ", representation.size())        
         
         output=self.historicalLSTM(representation)
+        #output=self.final_layer(output)
         return(output)
 
         #return(output)
