@@ -28,8 +28,8 @@ def selectAction(obs):
     
     
 
-    print('image: %s' % str(image.shape))
-    print('mission: %s' % mission)
+    #print('image: %s' % str(image.shape))
+    #print('mission: %s' % mission)
     print('advice: %s' % advice)
 
     import random

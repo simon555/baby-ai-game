@@ -14,7 +14,7 @@ from torch.autograd import Variable
 import os
 directory=os.getcwd()
 if(not directory[-5:]=='model'):
-    directory=directory+ '\\model'
+    directory=directory+ '/model'
     sys.path.insert(0,directory)
     print("new path added to sys.path : ", directory)
     

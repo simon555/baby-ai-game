@@ -8,7 +8,7 @@ import numpy as np
 import sys
 import os
 directory=os.getcwd()
-directory=directory+'\\gym_aigame\\envs'
+directory=directory+'/gym_aigame/envs'
 if not directory in sys.path:
     sys.path.insert(0,directory)
 print("adding directory path")
@@ -376,7 +376,7 @@ class Teacher(Wrapper):
     def getCurrentDorPos(self):                
         for room in reversed(self.env.rooms):
             if room.exitDoorPos !=None:
-                print(room.exitDoorPos)
+                #print(room.exitDoorPos)
                 if not self.env.grid.get(room.exitDoorPos[0],room.exitDoorPos[1]).isOpen:
                     currentRoom=room
         return(currentRoom.exitDoorPos)

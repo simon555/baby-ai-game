@@ -15,7 +15,7 @@ if not currentDirectory in sys.path:
     sys.path.insert(0,currentDirectory)
 
 import torch
-import matplotlib.pyplot as pl
+
 import numpy as np
 from torch.autograd import Variable
 import torch.nn as nn
