@@ -12,20 +12,41 @@ print("adding directory path")
 import time
 import sys
 import threading
+import copy
+import random
 from optparse import OptionParser
 
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QInputDialog
 from PyQt5.QtWidgets import QLabel, QTextEdit, QFrame
 from PyQt5.QtWidgets import QPushButton, QSlider, QHBoxLayout, QVBoxLayout
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QColor
 
+<<<<<<< HEAD
 
+=======
+# Gym environment used by the Baby AI Game
+>>>>>>> 80b5ea0f5f67cca97c6a5770250b2b54a9e86dc7
 import gym
-from gym_aigame.envs import AIGameEnv, Teacher
-from model.training import selectAction
+import gym_minigrid
+from gym_minigrid import minigrid
+
+import levels
+import agents
+
+class ImgWidget(QLabel):
+    """
+    Widget to intercept clicks on the full image view
+    """
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+
+    def mousePressEvent(self, event):
+        self.window.imageClick(event.x(), event.y())
 
 class AIGameWindow(QMainWindow):
+    """Application window for the baby AI game"""
 
     def __init__(self, env):
         super().__init__()
@@ -45,6 +66,9 @@ class AIGameWindow(QMainWindow):
         self.stepTimer.timeout.connect(self.stepClicked)
         self.stepIdx=1
 
+        # Pointing and naming data
+        self.pointingData = []
+
     def initUI(self):
         """Create and connect the UI elements"""
 
@@ -52,7 +76,7 @@ class AIGameWindow(QMainWindow):
         self.setWindowTitle('Baby AI Game')
 
         # Full render view (large view)
-        self.imgLabel = QLabel()
+        self.imgLabel = ImgWidget(self)
         self.imgLabel.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         leftBox = QVBoxLayout()
         leftBox.addStretch(1)
@@ -89,10 +113,6 @@ class AIGameWindow(QMainWindow):
         self.missionBox.setMinimumSize(500, 100)
         self.missionBox.textChanged.connect(self.missionEdit)
 
-        self.adviceBox = QTextEdit()
-        self.adviceBox.setMinimumSize(500, 100)
-        self.adviceBox.textChanged.connect(self.adviceEdit)
-
         buttonBox = self.createButtons()
 
         self.stepsLabel = QLabel()
@@ -101,14 +121,11 @@ class AIGameWindow(QMainWindow):
         self.stepsLabel.setMinimumSize(60, 10)
         resetBtn = QPushButton("Reset")
         resetBtn.clicked.connect(self.resetEnv)
-        seedBtn = QPushButton("Seed")
-        seedBtn.clicked.connect(self.reseedEnv)
         stepsBox = QHBoxLayout()
         stepsBox.addStretch(1)
         stepsBox.addWidget(QLabel("Steps remaining"))
         stepsBox.addWidget(self.stepsLabel)
         stepsBox.addWidget(resetBtn)
-        stepsBox.addWidget(seedBtn)
         stepsBox.addStretch(1)
 
         hline2 = QFrame()
@@ -118,13 +135,10 @@ class AIGameWindow(QMainWindow):
         # Stack everything up in a vetical layout
         vbox = QVBoxLayout()
         vbox.addLayout(miniViewBox)
-        #vbox.addWidget(hline)
         vbox.addLayout(stepsBox)
         vbox.addWidget(hline2)
-        vbox.addWidget(QLabel("General mission"))
+        vbox.addWidget(QLabel("Mission"))
         vbox.addWidget(self.missionBox)
-        vbox.addWidget(QLabel("Contextual advice"))
-        vbox.addWidget(self.adviceBox)
         vbox.addLayout(buttonBox)
 
         return vbox
@@ -167,19 +181,27 @@ class AIGameWindow(QMainWindow):
         return hbox
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Left:
-            self.stepEnv(AIGameEnv.ACTION_LEFT)
-        elif e.key() == Qt.Key_Right:
-            self.stepEnv(AIGameEnv.ACTION_RIGHT)
-        elif e.key() == Qt.Key_Up:
-            self.stepEnv(AIGameEnv.ACTION_FORWARD)
-        elif e.key() == Qt.Key_Space:
-            self.stepEnv(AIGameEnv.ACTION_TOGGLE)
+        # Manual agent control
+        actions = self.env.unwrapped.actions
 
-        #elif e.key() == Qt.Key_PageUp:
-        #    self.plusReward()
-        #elif e.key() == Qt.Key_PageDown:
-        #    self.minusReward()
+        if e.key() == Qt.Key_Left:
+            self.stepEnv(actions.left)
+        elif e.key() == Qt.Key_Right:
+            self.stepEnv(actions.right)
+        elif e.key() == Qt.Key_Up:
+            self.stepEnv(actions.forward)
+
+        elif e.key() == Qt.Key_PageUp:
+            self.stepEnv(actions.pickup)
+        elif e.key() == Qt.Key_PageDown:
+            self.stepEnv(actions.drop)
+        elif e.key() == Qt.Key_Space:
+            self.stepEnv(actions.toggle)
+
+        elif e.key() == Qt.Key_Backspace:
+            self.resetEnv()
+        elif e.key() == Qt.Key_Escape:
+            self.close()
 
     def mousePressEvent(self, event):
         """
@@ -187,24 +209,101 @@ class AIGameWindow(QMainWindow):
         else on the window is clicked
         """
 
-        # Get the object currently in focus
-        focused = QApplication.focusWidget()
-
-        if isinstance(focused, (QPushButton, QTextEdit)):
-            focused.clearFocus()
+        # Set the focus on the full render image
+        self.imgLabel.setFocus()
 
         QMainWindow.mousePressEvent(self, event)
+
+    def imageClick(self, x, y):
+        """
+        Pointing and naming logic
+        """
+
+        # Set the focus on the full render image
+        self.imgLabel.setFocus()
+
+        env = self.env.unwrapped
+        imgW = self.imgLabel.size().width()
+        imgH = self.imgLabel.size().height()
+
+        i = (env.grid.width * x) // imgW
+        j = (env.grid.height * y) // imgH
+        assert i < env.grid.width
+        assert j < env.grid.height
+
+        print('grid clicked: i=%d, j=%d' % (i, j))
+
+        desc, ok = QInputDialog.getText(self, 'Pointing & Naming', 'Enter Description:')
+        desc = str(desc)
+
+        if not ok or len(desc) == 0:
+            return
+
+        pointObj = env.grid.get(i, j)
+
+        if pointObj is None:
+            return
+
+        print('description: "%s"' % desc)
+        print('object: %s %s' % (pointObj.color, pointObj.type))
+
+        viewSz = minigrid.AGENT_VIEW_SIZE
+
+        NUM_TARGET = 50
+        numItrs = 0
+        numPos = 0
+        numNeg = 0
+
+        while (numPos < NUM_TARGET or numNeg < NUM_TARGET) and numItrs < 300:
+            env2 = copy.deepcopy(env)
+
+            # Randomly place the agent around the selected point
+            x, y = i, j
+            x += random.randint(-viewSz, viewSz)
+            y += random.randint(-viewSz, viewSz)
+            x = max(0, min(x, env2.grid.width - 1))
+            y = max(0, min(y, env2.grid.height - 1))
+            env2.agent_pos = (x, y)
+            env2.agent_dir = random.randint(0, 3)
+
+            # Don't want to place the agent on top of something
+            if env2.grid.get(*env2.agent_pos) != None:
+                continue
+
+            agent_sees = env2.agent_sees(i, j)
+
+            obs = env2.gen_obs()
+            img = obs['image'] if isinstance(obs, dict) else obs
+            obsGrid = minigrid.Grid.decode(img)
+
+            datum = {
+                'desc': desc,
+                'img': img,
+                'pos': (i, j),
+                'present': agent_sees
+            }
+
+            if agent_sees and numPos < NUM_TARGET:
+                self.pointingData.append(datum)
+                numPos += 1
+
+            if not agent_sees and numNeg < NUM_TARGET:
+                # Don't want identical object in mismatch examples
+                if (pointObj.color, pointObj.type) not in obsGrid:
+                    self.pointingData.append(datum)
+                    numNeg += 1
+
+            numItrs += 1
+
+        print('positive examples: %d' % numPos)
+        print('negative examples: %d' % numNeg)
+        print('total examples: %d' % len(self.pointingData))
 
     def missionEdit(self):
         # The agent will get the mission as an observation
         # before performing the next action
         text = self.missionBox.toPlainText()
-
-    def adviceEdit(self):
-        # The agent will get this advice as an observation
-        # before performing the next action
-        text = self.adviceBox.toPlainText()
-        self.lastObs['advice'] = text
+        self.lastObs['mission'] = text
 
     def plusReward(self):
         print('+reward')
@@ -240,27 +339,8 @@ class AIGameWindow(QMainWindow):
 
     def resetEnv(self):
         obs = self.env.reset()
-
-        if not isinstance(obs, dict):
-            obs = { 'image': obs, 'advice': '', 'mission': '' }
-
-        # If no mission is specified
-        if obs['mission']:
-            mission = obs['mission']
-        else:
-            mission = "Get to the green goal square"
-
-        self.missionBox.setPlainText(mission)
-
         self.lastObs = obs
-
         self.showEnv(obs)
-
-    def reseedEnv(self):
-        import random
-        seed = random.randint(0, 0xFFFFFFFF)
-        self.env.seed(seed)
-        self.resetEnv()
 
     def showEnv(self, obs):
         unwrapped = self.env.unwrapped
@@ -271,17 +351,19 @@ class AIGameWindow(QMainWindow):
 
         # Render and display the agent's view
         image = obs['image']
-        obsPixmap = unwrapped.getObsRender(image)
+        obsPixmap = unwrapped.get_obs_render(image)
         self.obsImgLabel.setPixmap(obsPixmap)
 
-        # Set the steps remaining displayadvice
-        stepsRem = unwrapped.getStepsRemaining()
+        # Update the mission text
+        mission = obs['mission']
+        self.missionBox.setPlainText(mission)
+
+        # Set the steps remaining
+        stepsRem = unwrapped.steps_remaining
         self.stepsLabel.setText(str(stepsRem))
 
-        advice = obs['advice']
-        self.adviceBox.setPlainText(advice)
-
     def stepEnv(self, action=None):
+<<<<<<< HEAD
         #print('stepEnv : ',self.stepIdx)
         #print('action=%s' % action)
 
@@ -291,14 +373,13 @@ class AIGameWindow(QMainWindow):
             text = self.missionBox.toPlainText()
             self.lastObs['mission'] = text
 
+=======
+>>>>>>> 80b5ea0f5f67cca97c6a5770250b2b54a9e86dc7
         # If no manual action was specified by the user
         if action == None:
-            action = selectAction(self.lastObs)
+            action = random.randint(0, self.env.action_space.n - 1)
 
         obs, reward, done, info = self.env.step(action)
-
-        if not isinstance(obs, dict):
-            obs = { 'image': obs, 'advice': '', 'mission': '' }
 
         self.showEnv(obs)
         self.lastObs = obs
@@ -306,36 +387,22 @@ class AIGameWindow(QMainWindow):
         if done:
             self.resetEnv()
 
-    def stepLoop(self):
-        """Auto stepping loop, runs in its own thread"""
-
-        print('stepLoop')
-
-        while True:
-            if self.fpsLimit == 0:
-                time.sleep(0.1)
-                continue
-
-            if self.fpsLimit < 100:
-                time.sleep(0.1)
-
-            self.stepEnv()
-
 def main(argv):
-
     parser = OptionParser()
     parser.add_option(
-        "-e",
         "--env-name",
-        dest="env",
         help="gym environment to load",
-        default='AIGame-Multi-Room-N6-v0'
+        default='MiniGrid-MultiRoom-N6-v0'
     )
     (options, args) = parser.parse_args()
 
     # Load the gym environment
+<<<<<<< HEAD
     env = gym.make(options.env)
     env = Teacher(env)
+=======
+    env = gym.make(options.env_name)
+>>>>>>> 80b5ea0f5f67cca97c6a5770250b2b54a9e86dc7
 
     # Create the application window
     app = QApplication(sys.argv)
